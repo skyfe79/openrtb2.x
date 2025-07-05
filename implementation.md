@@ -1,244 +1,248 @@
-## Table of Contents
+## 목차
 
-- [7. Implementation Notes](#implementationnotes)
-  - [7.1 - No-Bid Signaling](#nobidsignaling)
-  - [7.2 - Impression Expiration](#impressionexpiration)
-  - [7.3 - PMP & Direct Deals](#pmpanddirectdeals)
-  - [7.4 - Skippability](#skippability)
-  - [7.5 - Regs Resources](#regsresources)
-  - [7.6 - Pod Bidding for Video and Audio](#podbidding)
-  - [7.7 - Network vs Channel Example Cases](#networkandchannel)
-  - [7.8 - Counting Billable Events and Tracked Ads](#counting)
-  - [7.9 - Digital Out-Of-Home](#dooh)
-  - [7.10 - Updated Video Signals](#videosignals)
-  - [7.11 - Guidance on the Use of Floors](#floors)
-  - [7.12 - ID Match Method Guidance](#idmm)
-  - [7.13 - Using genres and gtax attributes](#genre)
-  - [7.14 - Using Extended Content Identifiers](#cids)
+- [7. 구현 노트](#implementationnotes)
+  - [7.1 - 입찰하지 않음을 알리는 시그널](#nobidsignaling)
+  - [7.2 - 노출 만료](#impressionexpiration)
+  - [7.3 - PMP 및 직접 거래](#pmpanddirectdeals)
+  - [7.4 - 스킵 가능성](#skippability)
+  - [7.5 - 규제 리소스](#regsresources)
+  - [7.6 - 비디오 및 오디오 팟 입찰](#podbidding)
+  - [7.7 - 네트워크 대 채널 예시 사례](#networkandchannel)
+  - [7.8 - 청구 가능 이벤트와 추적 광고 계산](#counting)
+  - [7.9 - 디지털 아웃오브홈](#dooh)
+  - [7.10 - 업데이트된 비디오 시그널](#videosignals)
+  - [7.11 - 플로어 사용 가이드](#floors)
+  - [7.12 - ID 매칭 방식 가이드](#idmm)
+  - [7.13 - 장르 및 gtax 속성 사용](#genre)
+  - [7.14 - 확장 콘텐츠 식별자 사용](#cids)
 
-# 7. Implementation Notes <a name="implementationnotes"></a>
-	
-The following section will provide brief notes on how certain objects and fields are to be interpreted and implemented.
-	
-## 7.1 - No-Bid Signaling <a name="nobidsignaling"></a>
-	
-This section covers best practices for using the optional no-bid signaling. See the [List: No-Bid Reason Codes](https://github.com/InteractiveAdvertisingBureau/openrtb/blob/master/OpenRTB%20v3.0%20FINAL.md#list--no-bid-reason-codes-) in OpenRTB 3.0 for the enumerated list of no-bid reason codes.
-	
-Many exchanges support multiple response types as a no-bid:
-	
-- HTTP 204 “No Content” from the bidder (*most economical in terms of bandwidth*).
-- An empty JSON object:<br>
- 	```javascript
+
+# 7. 구현 노트 <a name="implementationnotes"></a>
+
+이번 섹션에서는 특정 객체와 필드를 어떻게 해석하고 구현해야 하는지에 대한 간단한 설명을 제공한다.
+
+
+## 7.1 - No-Bid 시그널링 <a name="nobidsignaling"></a>
+
+이 섹션에서는 선택적 no-bid 시그널링 사용에 대한 최적의 방법을 다룬다. OpenRTB 3.0의 [List: No-Bid Reason Codes](https://github.com/InteractiveAdvertisingBureau/openrtb/blob/master/OpenRTB%20v3.0%20FINAL.md#list--no-bid-reason-codes-)에서 no-bid 이유 코드의 열거형 목록을 확인할 수 있다.
+
+많은 교환 플랫폼은 no-bid에 대해 여러 응답 타입을 지원한다:
+
+- 입찰자로부터의 HTTP 204 "No Content" 응답 (*대역폭 측면에서 가장 경제적*).
+- 빈 JSON 객체:<br>
+	```javascript
 	{}
 	```
-- A well-formed no bid response:<br>
- 	```javascript
+- 잘 구성된 no-bid 응답:<br>
+	```javascript
 	{"id": "1234567890", "seatbid": []}
 	```
-- A well-formed no bid response with a reason code:<br>
- 	```javascript
+- 이유 코드가 포함된 잘 구성된 no-bid 응답:<br>
+	```javascript
 	{"id": "1234567890", "seatbid": [], "nbr": 2}
 	```
-	
-An important issue in RTB is when impressions are triggered by software robots mimicking web browsers. Such robots may be implicitly or explicitly driving these false transactions. The following represents a set of symmetric best practices for exchanges and bidders to help recognize and reject these events.
-	
-*Responsibility of the exchange*
-	
-Make best effort to classify and reject non-human traffic (NHT) requests for ads to the exchange via the following best practices:
-	
-- (Recommended) Filter impressions from known spiders via user-agent classification.
-- (Recommended) Filter impressions from suspected NHT via a “detector”.
-	
-*Responsibility of the bidder*
-	
-- (Recommended) no-bid impressions from known spiders via user-agent classification.
-- (Recommended) no-bid impressions from suspected NHT via a “detector”.
-- Specify a no-bid reason code in either case.
-	
-*Where:*
-	
-- For exchanges, filtering the impression means that the exchange should respond to the “ad call” with either a blank HTTP 204 response or an unpaid ad (PSA) and not offered to any bidders.
-- For bidders, filtering the impression means that the bidder should respond with a no-bid.
-- For both exchanges and bidders, the impression transaction records should be clearly marked in any logging systems and be removed from contributing to any event counts associated with planning, forecasting, and reporting systems.
-	
-## 7.2 - Impression Expiration <a name="impressionexpiration"></a>
-	
-Recapping the typical impression flow through RTB, an ad will be requested by a client (e.g., web browser, mobile app or an SDK therein) possibly through other server intermediaries, and ultimately to the RTB exchange. The exchange conducts an auction among buyers who bid with a proposed price, possibly markup for use if the bid wins (markup can also be delivered on the win notice itself), and other metadata about the bid. The exchange then selects a winner, issues a win notice to the winning bidder, and passes the markup back to the client.
-	
-Winning the auction, however, does not guarantee that the ad will be successfully delivered to the client or that it will meet viewability expectations. Furthermore, policies vary among exchanges as to the criteria for billing. Most consider an ad billable upon some form of delivery or rendering vs. the auction win alone. This aligns better with the buyer’s obvious goal of ensuring that the impressions they pay for are actually displayed.
-	
-Some exchanges attempt to facilitate this alignment by placing the win notice in the winning ad markup so that it can serve as both a win notice and rendering notice. This is neither endorsed nor prohibited by OpenRTB except that it precludes the exchange from accepting markup on the win notice return as described in [Section 4.2.1](2.6.md#objectbidresponse). Similarly, many buyers use their own tracking URL placed within their ad markup to signal rendering independent of the OpenRTB auction win notice. In video specifically, VAST supports an impression tracking URL that is often used for billing and is always distinct from the auction win notice.
-	
-To abstract the concept, let us refer to “*billing notice*” as the firing of some notification URL at the time when the clearing price of the impression will be booked as spend. This is irrespective of whether the actual OpenRTB win notice URL is delegated to the client for firing or some other tracking URL is used.
-	
-For buyers, this billing notice is used to book progress toward spend goals and frequency caps and drive pacing algorithms. When the billing notice is delayed significantly, these critical functions can be seriously impaired. There are legitimate reasons for some delays such as caching. A common scenario is a video interstitial impression in a mobile app. Refining the example, consider a game where the video is prefetched during game play so that it can be shown after the current game level ends. This is important for the user experience but can delay the rendering of the ad for many minutes.
-	
-Bidders are strongly advised to track the time between the auction and the win and/or billing notices to ensure reasonable delays. If unreasonable delays are encountered frequently, bidders may elect to ignore such events and bring them to the attention of the exchange for resolution. Unfortunately, the sequence from ad request through the auction and finally to rendering and billing is fundamentally not transactional. There are simply too many parties, policies, and technologies involved and thus a good support relationship between exchange and buyer is still important.
-	
-The OpenRTB protocol does provide some real-time assistance, however. The `imp.exp` attribute ([Section 3.2.4](2.6.md#objectimp)) in the bid request allows an exchange to provide guidance to bidders of the number of seconds that may elapse between the auction and the billing event. As usual, omitted means unknown. Bidders can then decide if they want to bid understanding the likely delay. Bidders are advised, however, to interpret this as guidance as opposed to a contract unless the exchange expresses otherwise since exchanges are not always in a position to make hard guarantees (e.g., the SDK within the client app may not be under the exchange’s control).
-	
-Similarly, the `bid.exp` attribute ([Section 4.2.3](2.6.md#objectbid)) in the bid response allows the bidder to express the maximum number of seconds they are willing to tolerate between auction and billing notice. This allow the exchange to drop bids with expiration constraints it believes are likely to be violated. Bidders should not assume that a delayed billing notice greater than their specified bid expirations will not be billable. That is a policy and contract discussion between bidder and exchange and not imposed by OpenRTB.
-	
-The following expiration times are offered as examples of reasonable delays based on the nature of the impression. These are only provided as rules of thumb. A more data-driven method of determining these times in specific situations is highly recommended.
+
+RTB에서 중요한 문제 중 하나는 웹 브라우저를 모방한 소프트웨어 봇에 의해 노출이 트리거되는 경우다. 이러한 봇은 암묵적 또는 명시적으로 이러한 가짜 트랜잭션을 유발할 수 있다. 다음은 교환 플랫폼과 입찰자가 이러한 이벤트를 인식하고 거부할 수 있도록 돕는 대칭적 최적의 방법을 나타낸다.
+
+*교환 플랫폼의 책임*
+
+다음의 최적의 방법을 통해 비인간 트래픽(NHT) 광고 요청을 분류하고 거부하기 위해 최선을 다한다:
+
+- (권장) 알려진 스파이더의 노출을 user-agent 분류를 통해 필터링한다.
+- (권장) 의심스러운 NHT의 노출을 "탐지기"를 통해 필터링한다.
+
+*입찰자의 책임*
+
+- (권장) 알려진 스파이더의 노출을 user-agent 분류를 통해 no-bid 처리한다.
+- (권장) 의심스러운 NHT의 노출을 "탐지기"를 통해 no-bid 처리한다.
+- 두 경우 모두 no-bid 이유 코드를 지정한다.
+
+*어디에서:*
+
+- 교환 플랫폼의 경우, 노출을 필터링한다는 것은 "광고 호출"에 대해 빈 HTTP 204 응답 또는 무료 광고(PSA)로 응답하고 입찰자에게 제공하지 않아야 한다는 의미다.
+- 입찰자의 경우, 노출을 필터링한다는 것은 no-bid로 응답해야 한다는 의미다.
+- 교환 플랫폼과 입찰자 모두의 경우, 노출 트랜잭션 기록은 모든 로깅 시스템에 명확히 표시하고, 계획, 예측, 보고 시스템과 관련된 이벤트 카운트에 기여하지 않도록 제거해야 한다.
+
+
+## 7.2 - 광고 노출 만료 <a name="impressionexpiration"></a>
+
+RTB(실시간 입찰)를 통한 일반적인 광고 노출 흐름을 다시 살펴보면, 클라이언트(예: 웹 브라우저, 모바일 앱 또는 내장 SDK)가 광고를 요청하고, 이 요청은 여러 서버 중개자를 거쳐 최종적으로 RTB 거래소에 도달한다. 거래소는 입찰자들 간에 경매를 진행하며, 입찰자는 제안 가격, 입찰 성공 시 사용할 마크업(마크업은 입찰 성공 알림 자체로 전달될 수도 있음), 그리고 입찰에 관한 기타 메타데이터를 제출한다. 거래소는 입찰 승자를 선정하고, 승자에게 입찰 성공 알림을 발송하며, 마크업을 클라이언트로 전달한다.
+
+그러나 경매에서 승리한다고 해서 광고가 클라이언트에게 성공적으로 전달되거나 시청 가능성 기준을 충족한다는 보장은 없다. 또한, 거래소마다 과금 기준에 대한 정책이 다르다. 대부분의 거래소는 단순히 경매 승리가 아닌, 광고의 전달 또는 렌더링 형태를 기준으로 과금을 진행한다. 이는 구매자가 지불한 광고 노출이 실제로 표시되었는지 확인하려는 목표와 더 잘 부합한다.
+
+일부 거래소는 입찰 성공 알림을 승리한 광고의 마크업에 포함시켜, 이를 입찰 성공 알림과 렌더링 알림으로 동시에 사용하려고 시도한다. OpenRTB는 이를 명시적으로 승인하거나 금지하지 않지만, [4.2.1절](2.6.md#objectbidresponse)에서 설명한 대로, 이 방식은 거래소가 입찰 성공 알림 반환 시 마크업을 수락하는 것을 방해한다. 마찬가지로, 많은 구매자는 OpenRTB 입찰 성공 알림과 독립적으로 렌더링을 신호하기 위해 광고 마크업 내에 자체 추적 URL을 배치한다. 특히 비디오 광고의 경우, VAST는 과금에 자주 사용되며 입찰 성공 알림과 항상 구분되는 노출 추적 URL을 지원한다.
+
+이 개념을 추상화하기 위해, "과금 알림"을 광고 노출의 클리어링 가격이 지출로 기록되는 시점에 발화되는 알림 URL의 실행이라고 지칭하자. 이는 실제 OpenRTB 입찰 성공 알림 URL이 클라이언트에게 위임되어 발화되는지, 아니면 다른 추적 URL이 사용되는지와는 무관하다.
+
+구매자에게 있어, 이 과금 알림은 지출 목표 및 빈도 제한에 대한 진행 상황을 기록하고, 페이싱 알고리즘을 구동하는 데 사용된다. 과금 알림이 크게 지연되면 이러한 핵심 기능이 심각하게 저해될 수 있다. 캐싱과 같은 합당한 이유로 인한 지연도 존재한다. 일반적인 시나리오로는 모바일 앱 내 비디오 인터스티셜 광고 노출이 있다. 예를 들어, 게임 플레이 중에 비디오를 미리 가져와 현재 게임 레벨이 끝난 후에 표시하는 경우를 생각해 보자. 이는 사용자 경험에 중요하지만, 광고 렌더링을 수 분 동안 지연시킬 수 있다.
+
+입찰자는 경매와 입찰 성공 및/또는 과금 알림 사이의 시간을 추적하여 합리적인 지연을 보장해야 한다. 만약 비합리적인 지연이 자주 발생한다면, 입찰자는 해당 이벤트를 무시하고 거래소에 이를 알려 해결을 요청할 수 있다. 불행히도, 광고 요청부터 경매를 거쳐 최종적으로 렌더링 및 과금에 이르는 과정은 기본적으로 트랜잭션이 아니다. 너무 많은 당사자, 정책, 기술이 관여하기 때문에, 거래소와 구매자 간의 좋은 지원 관계가 여전히 중요하다.
+
+그러나 OpenRTB 프로토콜은 실시간 지원을 제공한다. 입찰 요청의 `imp.exp` 속성([3.2.4절](2.6.md#objectimp))은 거래소가 입찰자에게 경매와 과금 이벤트 사이에 경과할 수 있는 시간(초 단위)을 안내할 수 있도록 한다. 이 속성이 생략된 경우 알 수 없음을 의미한다. 입찰자는 이 정보를 바탕으로 지연 가능성을 고려하여 입찰 여부를 결정할 수 있다. 그러나 입찰자는 이를 지침으로 해석해야 하며, 거래소가 명시적으로 표현하지 않는 한 계약으로 간주해서는 안 된다. 거래소가 항상 강력한 보장을 할 수 있는 위치에 있지 않기 때문이다(예: 클라이언트 앱 내 SDK가 거래소의 통제 하에 있지 않을 수 있음).
+
+마찬가지로, 입찰 응답의 `bid.exp` 속성([4.2.3절](2.6.md#objectbid))은 입찰자가 경매와 과금 알림 사이에 허용할 수 있는 최대 시간(초 단위)을 표현할 수 있도록 한다. 이를 통해 거래소는 위반될 가능성이 높은 입찰을 제외할 수 있다. 입찰자는 지정한 입찰 만료 시간보다 지연된 과금 알림이 과금되지 않을 것이라고 가정해서는 안 된다. 이는 입찰자와 거래소 간의 정책 및 계약 논의 사항이며, OpenRTB에 의해 강제되지 않는다.
+
+다음은 광고 노출의 특성에 따른 합리적인 지연 시간의 예시다. 이는 단지 참고용으로 제공되며, 구체적인 상황에서 이러한 시간을 결정하기 위해 데이터 기반 방식을 사용하는 것이 강력히 권장된다.
 <table>
   <tr>
-	  <td>Desktop and mobile web browsers</td><td>1 Minute</td></tr>
+	  <td>데스크톱 및 모바일 웹 브라우저</td><td>1분</td></tr>
 	<tr>
-		<td>Mobile app banner ads that may be cached</td><td>5 Minutes</td></tr>
+		<td>캐싱될 수 있는 모바일 앱 배너 광고</td><td>5분</td></tr>
 	<tr> 
-		<td>Mobile app native ads that may be cached</td><td>10 Minutes</td></tr>
+		<td>캐싱될 수 있는 모바일 앱 네이티브 광고</td><td>10분</td></tr>
 	<tr>  
-		<td>Mobile and video interstitials</td><td>30 Minutes (or even longer)</td></tr>
+		<td>모바일 및 비디오 인터스티셜</td><td>30분(또는 그 이상)</td></tr>
 	<tr>
-		<td>Audio or video with server-side stitching</td><td>Very Long or Unknown</td></tr>
+		<td>서버 측 스티칭이 적용된 오디오 또는 비디오</td><td>매우 길거나 알 수 없음</td></tr>
 	</table>
-	
-## 7.3 - PMP & Direct Deals <a name="pmpanddirectdeals"></a>
-	
-**Best Practice Bidding Logic**
-	
-Receive request and parse;<br>
-Create empty bid list for response;<br>
-If request contains the `impression[].pmp` object; match bids against each `pmp.deals[]`;<br>
-enforce targeting for dealID and seatID; append best M matching bids to response;<br>
-If `pmp.private_auction` = False;<br>
-match open auction bids against the request; append top N bids by price to response;<br>
-Return response list to exchange;<br>
-	
-*Recommendations*
-- M >= 1, preferably one per matching Deal ID.
-- N >= 2 to assist with blocking rate issues.
-- Minimum viable is “1+1” bidding.
-- Ideal is “M+N” bidding.
-	
-**Warning**
-	
-Returning only one bid when both Deal ID and open auction bids are valid creates problems. The exchange side may be configured by a publisher to prioritize all Deal ID bids above open auction bids, or to force a price auction between them with different floors by class of bid. There are multiple common practices that depend on how the publisher prefers to sell inventory with Deal ID.
-	
-**Policy Recommendations**
-	
-- A Deal ID should be utilized for any situation where the auction may be awarded to a bid not on the basis of price alone. Any prioritization of bids other than by price should have a Deal ID.
-- A Deal ID is recommended for all situations where a preferential floor may be assigned to a seat entity.
-	
-**Anti-Patterns**
-	
-The below is a set of anti-patterns that OpenRTB supporting platforms have observed in various attempts to implement Deal ID bidding logic.
-	
-**Subjecting Deal ID Bids to an internal auction on price**
-	
-The ideal bidding logic describes a process of being liberal about sending bids. Deal ID bids may not be subject to a classic price auction. There may be an expectation that the buyer and seller want prioritization to achieve a larger objective: complete delivery of the Deal represented by the Deal ID. Thus any bidding logic that sorts Deal ID bids by price (with or without open marketplace bids) and truncates the list too aggressively can endanger the fulfillment of the Deal.
-	
-**Associating Deal ID to the wrong Object**
-	
-A Deal ID should be treated as a “targeting token” associated to orders, line-items or campaigns. If the Deal ID is associated to a Seat/Buyer it may create an undesired application of the Deal ID too many active campaigns. Alternatively if it is associated to the Advertiser it may limit that entity to only a single Deal ID.
-	
-**Improper Handling of the Private vs Open Market Flag**
-	
-The `pmp.private_auction` flag indicates that the seller is willing or not willing to accept open market bids (i.e., “all bidders are welcome”). If this flag is not read and interpreted correctly, bid responses may be invalid. Open market bids sent to a private impression auction may be rejected and should not have been exposed to all bidders.
-	
-**Improper handling of Seat IDs**
-	
-If Seat IDs are treated as a filter of eligible demand partners on an open market impression, this defeats the “all bidders are welcome” intention.
-	
-**Silently Applying Margin Discounts to Deal ID Bids**
-	
-With Deal ID buyers are sellers are communicating directly. The Exchange and Bidder become third- party automation platforms. If there are any automatic or silent discounts of bid prices (based upon margins or fees) set by either the exchange or the bidder, then the Deal may fail to function correctly.
-	
-**Use cases**
-	
-*Case-1: Open Trading Agreement with Buyer*
-	
-- Between publisher and buying entity.
-- Publisher sets an access rule defining the price floor for a specific buyer.
-- Locked to the buyer.
-- Broadcast price floor.
-- Public/open inventory.
-- No Deal ID needed (Deal ID is optional).
-- No named advertiser(s).
-- No prioritization of bids.
-- Daily total or frequency caps optional on publisher/exchange side.
-- All placements or limited to specific placements.
-- Targeting is up to the buyer/bidder.
-	
-*Case-2: Open Trading Agreement with Buyer with Named Advertisers*
-	
-- As Case-1 with a list of named advertisers.
-	
-*Case-3: Open Bidding with Deal ID as Value-added Markers*
-	
-- Between publisher and buying entity.
-- Publisher sets a price floor for URL masked inventory.
-- Public/open inventory (i.e., all buyers welcome).
-- Deal ID represents “Package Tokens”.
-- Each Deal ID signals that the impression falls into various content and placement categories.
-- Floor is associated to each Deal ID to signal cost for usage of that token.
-- Winner is decided by bid price.
-- Execution of targeting is up to the buyer/bidder.
-	
-*Case-4: First Look Trading Agreement*
-	
-- Between publisher and buying entity.
-- Publisher sets an access rule defining the price floor for the buyer.
-- Locked to the buyer.
-- Known price floor.
-- Deal ID needed.
-- Optional named advertiser list.
-- Prioritization of bids expected.
-- Daily total or frequency caps optional on publisher/exchange side.
-- All placements or limited to specific placements.
-- Targeting is up to the buyer/bidder.
-	
-*Case-5: Direct Option Deal with Advertiser via RTB*
-	
-- Between Publisher and Advertiser or their representative.
-- Publisher sets a rule defining a price floor and prioritization for specific advertiser(s).
-- Fill rate is expected to be greater than or equal to X%.
-- Locked to the buyer.
-- Private/exclusive inventory.
-- Limited to a set list of advertiser names (generally variants of one name).
-- Known price floor.
-- Deal ID needed.
-- Prioritization of bids expected.
-- Daily total or frequency caps will apply on bidder side; optional on Exchange side.
-- Limited to specific placements.
-- Targeting is mostly enforced by buyer/bidder.
-	
-*Case-6: Direct Option Deal with Advertiser via RTB with Private Data*
-	
-- Same as Case-4.
-- Deal ID represents some combination of private first-party data from the Publisher.
-	
-*Case-7: Full-Fill Direct Deal with Advertiser via RTB*
-	
-- Same as Case-4.
-- Fill rate is expected to be 100% or nearly so.
-	
-*Case-8: Full-Fill Direct Deal with Advertiser via RTB with Private Data*
-	
-- Same as Case-6.
-- Deal ID represents some combination of private first-party data from the Publisher.
-	
-## 7.4 - Skippability <a name="skippability"></a>
-	
-This section clarifies the common use cases related to declaring skippability of video creatives.
-	
-Under most circumstances for RTB transactions, publishers and exchanges prefer to control the ability to skip the ad. OpenRTB therefore assumes by default that a standard linear video ad can be used as the
-response to a skippable request and the ability to skip the ad will be provided by the supplier’s player automatically.
-	
-The presence of the `video.skip` attribute in the bid request with a value of “1” should be assumed to mean that the publisher will impose a skip button on the ad. The absence of the `video.skip` attribute should be assumed to mean that it is unknown whether the publisher will impose a skip button.
-	
-DSPs should confirm with publishers whether it is permissible to respond with ads that provide their own skip functionality (e.g., using VPAID to render a skip button). If bidding with such an ad and only if doing so, the bid must indicate creative attribute “16” using the `attr` array in the bid response.
 
-*<b>NOTE</b>: VAST 4.0 separates VPAID interactivity from the media file so this is deprecated and only applies to earlier versions of VAST*
-	
-Some examples of these concepts follow:
-	
-**Bid Request**
-	
-*Case-1: Skippable after N Seconds for All Creatives*
-	
-In this case, the publisher will impose skippability. All ads will be skippable, but only after 5 seconds of play. Creatives with a total duration of 5 seconds or less would not be skippable since they would never reach this threshold.
-	
+
+## 7.3 - PMP & 직접 거래 <a name="pmpanddirectdeals"></a>
+
+**최적의 입찰 로직**
+
+요청을 받고 파싱한다;<br>
+응답을 위한 빈 입찰 리스트를 생성한다;<br>
+요청에 `impression[].pmp` 객체가 포함된 경우, 각 `pmp.deals[]`에 대해 입찰을 매칭한다;<br>
+dealID와 seatID에 대한 타겟팅을 적용하고, 가장 적합한 M개의 입찰을 응답에 추가한다;<br>
+`pmp.private_auction`이 False인 경우;<br>
+오픈 경매 입찰을 요청에 매칭하고, 가격 기준 상위 N개의 입찰을 응답에 추가한다;<br>
+응답 리스트를 거래소에 반환한다;<br>
+
+*추천 사항*
+- M >= 1, 가능하면 매칭된 Deal ID당 하나씩.
+- N >= 2로 설정해 블로킹 비율 문제를 해결.
+- 최소한 "1+1" 입찰 방식으로 진행.
+- 이상적으로는 "M+N" 입찰 방식.
+
+**경고**
+
+Deal ID와 오픈 경매 입찰이 모두 유효한 경우, 단 하나의 입찰만 반환하면 문제가 발생할 수 있다. 거래소 측에서 출판사가 모든 Deal ID 입찰을 오픈 경매 입찰보다 우선시하도록 설정하거나, 입찰 유형별로 다른 가격 기준을 적용해 경매를 진행하도록 설정할 수 있다. 출판사가 Deal ID로 인벤토리를 판매하는 방식을 어떻게 선호하느냐에 따라 다양한 관행이 존재한다.
+
+**정책 추천**
+
+- 가격 외의 기준으로 입찰이 결정될 수 있는 모든 상황에서 Deal ID를 사용해야 한다. 가격 이외의 기준으로 입찰을 우선시하는 경우 반드시 Deal ID를 적용해야 한다.
+- 특정 seat 엔터티에 우선순위 가격 기준이 할당될 수 있는 모든 상황에서 Deal ID를 사용하는 것이 좋다.
+
+**안티 패턴**
+
+아래는 OpenRTB를 지원하는 플랫폼들이 Deal ID 입찰 로직을 구현하는 과정에서 관찰한 안티 패턴들이다.
+
+**Deal ID 입찰을 내부 가격 경매에 적용**
+
+이상적인 입찰 로직은 입찰을 보내는 데 관대한 프로세스를 설명한다. Deal ID 입찰은 전통적인 가격 경매에 적용되지 않을 수 있다. 구매자와 판매자가 Deal ID가 나타내는 거래의 완전한 이행이라는 더 큰 목표를 달성하기 위해 우선순위를 원할 수 있다. 따라서 Deal ID 입찰을 가격 기준으로 정렬하고(오픈 마켓 입찰 포함 여부와 관계없이) 리스트를 지나치게 잘라내는 로직은 거래 이행을 위험에 빠뜨릴 수 있다.
+
+**잘못된 객체에 Deal ID 연결**
+
+Deal ID는 주문, 라인 아이템 또는 캠페인과 연결된 "타겟팅 토큰"으로 취급해야 한다. Deal ID를 Seat/구매자와 연결하면 너무 많은 활성 캠페인에 Deal ID가 적용될 수 있다. 반면 광고주와 연결하면 해당 엔터티가 단 하나의 Deal ID로만 제한될 수 있다.
+
+**Private vs Open Market 플래그의 잘못된 처리**
+
+`pmp.private_auction` 플래그는 판매자가 오픈 마켓 입찰을 받아들일지 여부를 나타낸다. 이 플래그를 올바르게 읽고 해석하지 않으면 입찰 응답이 무효화될 수 있다. 프라이빗 입찰 경매에 오픈 마켓 입찰을 보내면 거부될 수 있으며, 모든 입찰자에게 노출되어서는 안 된다.
+
+**Seat ID의 잘못된 처리**
+
+Seat ID가 오픈 마켓 입찰에서 적격 수요 파트너를 필터링하는 데 사용되면 "모든 입찰자 환영" 의도가 훼손된다.
+
+**Deal ID 입찰에 묵시적 마진 할인 적용**
+
+Deal ID를 사용할 때 구매자와 판매자는 직접 소통한다. 거래소와 입찰자는 제3자 자동화 플랫폼이 된다. 거래소나 입찰자가 마진이나 수수료를 기준으로 입찰 가격에 자동 또는 묵시적 할인을 적용하면 거래가 제대로 작동하지 않을 수 있다.
+
+**사용 사례**
+
+*사례 1: 구매자와의 오픈 거래 계약*
+
+- 출판사와 구매 엔터티 간 계약.
+- 출판사가 특정 구매자에 대한 가격 기준을 정의한 접근 규칙 설정.
+- 구매자에게 고정.
+- 공개 가격 기준.
+- 공개/오픈 인벤토리.
+- Deal ID 불필요(선택 사항).
+- 명시된 광고주 없음.
+- 입찰 우선순위 없음.
+- 출판사/거래소 측에서 일일 총량 또는 빈도 제한 선택 사항.
+- 모든 배치 또는 특정 배치로 제한.
+- 타겟팅은 구매자/입찰자에게 위임.
+
+*사례 2: 명시된 광고주와의 오픈 거래 계약*
+
+- 사례 1과 동일하지만 명시된 광고주 리스트 포함.
+
+*사례 3: Deal ID를 부가 가치 마커로 사용한 오픈 입찰*
+
+- 출판사와 구매 엔터티 간 계약.
+- 출판사가 URL 마스킹된 인벤토리에 대한 가격 기준 설정.
+- 공개/오픈 인벤토리(즉, 모든 구매자 환영).
+- Deal ID는 "패키지 토큰"을 나타냄.
+- 각 Deal ID는 해당 광고 노출이 다양한 콘텐츠 및 배치 카테고리에 속함을 나타냄.
+- 각 Deal ID에 가격 기준을 연결해 토큰 사용 비용을 나타냄.
+- 입찰 가격으로 승자 결정.
+- 타겟팅 실행은 구매자/입찰자에게 위임.
+
+*사례 4: 퍼스트 룩 거래 계약*
+
+- 출판사와 구매 엔터티 간 계약.
+- 출판사가 구매자에 대한 가격 기준을 정의한 접근 규칙 설정.
+- 구매자에게 고정.
+- 알려진 가격 기준.
+- Deal ID 필요.
+- 명시된 광고주 리스트 선택 사항.
+- 입찰 우선순위 예상.
+- 출판사/거래소 측에서 일일 총량 또는 빈도 제한 선택 사항.
+- 모든 배치 또는 특정 배치로 제한.
+- 타겟팅은 구매자/입찰자에게 위임.
+
+*사례 5: RTB를 통한 광고주와의 직접 옵션 거래*
+
+- 출판사와 광고주 또는 그 대리자 간 계약.
+- 출판사가 특정 광고주(들)에 대한 가격 기준과 우선순위를 정의한 규칙 설정.
+- 채우기 비율이 X% 이상일 것으로 예상.
+- 구매자에게 고정.
+- 프라이빗/독점 인벤토리.
+- 명시된 광고주 리스트로 제한(일반적으로 한 이름의 변형).
+- 알려진 가격 기준.
+- Deal ID 필요.
+- 입찰 우선순위 예상.
+- 입찰자 측에서 일일 총량 또는 빈도 제한 적용; 거래소 측에서 선택 사항.
+- 특정 배치로 제한.
+- 타겟팅은 주로 구매자/입찰자가 실행.
+
+*사례 6: 프라이빗 데이터와 함께 RTB를 통한 광고주와의 직접 옵션 거래*
+
+- 사례 4와 동일.
+- Deal ID는 출판사의 프라이빗 퍼스트파티 데이터 조합을 나타냄.
+
+*사례 7: RTB를 통한 광고주와의 완전 채우기 직접 거래*
+
+- 사례 4와 동일.
+- 채우기 비율이 100% 또는 거의 그에 가까울 것으로 예상.
+
+*사례 8: 프라이빗 데이터와 함께 RTB를 통한 광고주와의 완전 채우기 직접 거래*
+
+- 사례 6과 동일.
+- Deal ID는 출판사의 프라이빗 퍼스트파티 데이터 조합을 나타냄.
+
+
+## 7.4 - 광고 건너뛰기 기능 <a name="skippability"></a>
+
+이 섹션에서는 비디오 광고의 건너뛰기 기능을 선언하는 것과 관련된 일반적인 사용 사례를 설명한다.
+
+대부분의 RTB 거래 상황에서, 퍼블리셔와 광고 교환 플랫폼은 광고 건너뛰기 기능을 직접 제어하는 것을 선호한다. 따라서 OpenRTB는 기본적으로 건너뛰기 요청에 대한 응답으로 표준 선형 비디오 광고를 사용할 수 있으며, 건너뛰기 기능은 공급자의 플레이어에서 자동으로 제공된다고 가정한다.
+
+입찰 요청에서 `video.skip` 속성이 "1"로 설정되어 있으면, 퍼블리셔가 광고에 건너뛰기 버튼을 추가할 것이라고 가정해야 한다. `video.skip` 속성이 없으면 퍼블리셔가 건너뛰기 버튼을 추가할지 여부가 알려지지 않았다고 가정해야 한다.
+
+DSP는 퍼블리셔와 협의하여 자체 건너뛰기 기능을 제공하는 광고(예: VPAID를 사용해 건너뛰기 버튼을 렌더링하는 광고)로 응답해도 되는지 확인해야 한다. 이러한 광고로 입찰할 경우, 입찰 응답의 `attr` 배열에 "16"번 크리에이티브 속성을 표시해야 한다.
+
+*<b>참고</b>: VAST 4.0은 VPAID 상호작용을 미디어 파일과 분리했기 때문에 이 방식은 더 이상 사용되지 않으며, VAST의 이전 버전에만 적용된다.*
+
+다음은 이러한 개념의 예제들이다:
+
+**입찰 요청**
+
+*케이스 1: 모든 광고에 대해 N초 후 건너뛰기 가능*
+
+이 경우, 퍼블리셔가 건너뛰기 기능을 추가한다. 모든 광고는 5초 재생 후 건너뛸 수 있다. 총 재생 시간이 5초 이하인 광고는 이 임계값에 도달할 수 없기 때문에 건너뛸 수 없다.
+
 ```javascript
 "video": {
 	
@@ -249,11 +253,11 @@ In this case, the publisher will impose skippability. All ads will be skippable,
 	
 }
 ```
-	
-*Case-2: Skippable after N Seconds for Minimum Duration Creatives*
-	
-In this case, the publisher will impose skippability. However, only creatives with a total duration greater than 15 seconds will be skippable. For ads that satisfy this minimum total duration, skippability is enabled after 5 seconds of play. Note that although these values are integers, they will compare as precise values with actual video durations. For example, a video with duration 15.1 seconds does satisfy a `skipmin` value of 15 (i.e., think of the `skipmin` value as being 15.0).
-	
+
+*케이스 2: 최소 재생 시간을 가진 광고에 대해 N초 후 건너뛰기 가능*
+
+이 경우, 퍼블리셔가 건너뛰기 기능을 추가한다. 그러나 총 재생 시간이 15초를 초과하는 광고만 건너뛸 수 있다. 이 최소 재생 시간을 충족하는 광고는 5초 재생 후 건너뛸 수 있다. 이 값들은 정수이지만, 실제 비디오 재생 시간과 정확히 비교된다. 예를 들어, 15.1초 길이의 비디오는 `skipmin` 값 15를 충족한다(`skipmin` 값을 15.0으로 생각하면 된다).
+
 ```javascript
 "video": {
 	
@@ -264,11 +268,11 @@ In this case, the publisher will impose skippability. However, only creatives wi
 ...
 	}
 ```
-	
-*Case-3: Non-Skippable unless Requested by the Ad Markup*
-	
-In this case, the publisher will not impose skippability. Ads will only be skippable if requested by the ad markup. This is supported by VPAID and VAST 3.0, for example.
-	
+
+*케이스 3: 광고 마크업에서 요청하지 않는 한 건너뛸 수 없음*
+
+이 경우, 퍼블리셔가 건너뛰기 기능을 추가하지 않는다. 광고 마크업에서 요청한 경우에만 광고를 건너뛸 수 있다. 이는 VPAID와 VAST 3.0에서 지원된다.
+
 ```javascript
 "video": {
 	
@@ -278,18 +282,17 @@ In this case, the publisher will not impose skippability. Ads will only be skipp
 	
 }
 ```
-	
-*Case-4: Unknown Skippability*
-	
-In this case, the `skip` attribute is omitted which indicates that exchange does not know if skippability will be imposed by the publisher. This may be the case, for example, when the exchange is not an SSP and thus may not have control or full knowledge of the publisher’s intentions.
-	
-**Bid Response**
-	
-Consider Case-3 above, where the publisher does not impose skippability. If the ad markup itself will request skippability (e.g., via VPAID or VAST 3.0), then the bid must signal this intention. This is accomplished by including creative attribute 16 (i.e., Skippable) in the bid as shown below. If the markup is not going to request skippability, then this creative attribute should not be indicated.
-	
-When responding to Case-3 with this skippable attribute specified in the bid, the publisher should provide skippability either by instructing the VAST 3.0 player to activate skippability (refer to the VAST
-3.0 `skipoffset` attribute) or by allowing the ad to render its own skip button using VPAID.
-	
+
+*케이스 4: 건너뛰기 가능 여부 알 수 없음*
+
+이 경우, `skip` 속성이 생략되어 있어 교환 플랫폼이 퍼블리셔가 건너뛰기 기능을 추가할지 여부를 알 수 없다. 예를 들어, 교환 플랫폼이 SSP가 아닌 경우 퍼블리셔의 의도를 제어하거나 완전히 알지 못할 수 있다.
+
+**입찰 응답**
+
+위의 케이스 3을 고려해 보자. 퍼블리셔가 건너뛰기 기능을 추가하지 않는다면, 광고 마크업 자체에서 건너뛰기를 요청하는 경우(예: VPAID 또는 VAST 3.0을 통해) 입찰에서 이 의도를 표시해야 한다. 이는 아래와 같이 입찰에 "16"번 크리에이티브 속성(즉, 건너뛰기 가능)을 포함해 수행된다. 마크업이 건너뛰기를 요청하지 않는다면 이 크리에이티브 속성을 표시하지 않아야 한다.
+
+이 건너뛰기 속성이 지정된 입찰로 케이스 3에 응답할 때, 퍼블리셔는 VAST 3.0 플레이어에게 건너뛰기 기능을 활성화하도록 지시하거나(VAST 3.0 `skipoffset` 속성 참조), VPAID를 사용해 광고가 자체 건너뛰기 버튼을 렌더링하도록 허용해야 한다.
+
 ```javascript
 "bid": {
 	
@@ -299,320 +302,317 @@ When responding to Case-3 with this skippable attribute specified in the bid, th
 	
 }
 ```
-	
-In Case-1 and Case-2 where the publisher may impose its own skippability, creative attribute 16 should not be specified. Furthermore, publishers are advised to filter responses containing attribute 16 since this could conflict with the skip button rendered by the publisher. When using a VAST 3.0 response, publishers may choose to implement support for VAST 3.0 `skipoffset` at their discretion and ads should be assumed to play non-skippable if the player does not support it.
-	
-## 7.5 - Regs Resources <a name="regsresources"></a>
-	
-The regs object contains any legal, governmental, or industry regulations that the sender deem applicable to the request.
-	
-Please see the below resources for more details and framework specifications should you choose to implement them:
-	
-**<a href="https://github.com/InteractiveAdvertisingBureau/GDPR-Transparency-and-Consent-Framework">GDPR (General Data Protection Regulation)</a>**
+
+퍼블리셔가 자체적으로 건너뛰기 기능을 추가할 수 있는 케이스 1과 케이스 2에서는 크리에이티브 속성 16을 지정하지 않아야 한다. 또한, 퍼블리셔는 속성 16이 포함된 응답을 필터링하는 것이 좋다. 이는 퍼블리셔가 렌더링한 건너뛰기 버튼과 충돌할 수 있기 때문이다. VAST 3.0 응답을 사용할 때, 퍼블리셔는 VAST 3.0 `skipoffset` 지원을 자유롭게 구현할 수 있으며, 플레이어가 이를 지원하지 않으면 광고가 건너뛸 수 없이 재생된다고 가정해야 한다.
 
 
-**<a href="https://github.com/InteractiveAdvertisingBureau/USPrivacy">CCPA (California Consumer Privacy Act)</a>**
+## 7.5 - 규제 리소스 <a name="regsresources"></a>
+
+regs 객체는 요청과 관련된 법적, 정부, 또는 산업 규제 정보를 포함한다. 발신자가 해당 요청에 적용 가능하다고 판단한 규제 정보를 담는다.
+
+아래 리소스에서 더 자세한 내용과 프레임워크 사양을 확인할 수 있다. 이를 구현하려는 경우 참고하면 된다:
+
+**<a href="https://github.com/InteractiveAdvertisingBureau/GDPR-Transparency-and-Consent-Framework">GDPR (일반 데이터 보호 규정)</a>**
+
+**<a href="https://github.com/InteractiveAdvertisingBureau/USPrivacy">CCPA (캘리포니아 소비자 개인 정보 보호법)</a>**
 
 
-## 7.6 - Pod Bidding for Video and Audio <a name="podbidding"></a>
-	
-Starting in version 2.6, OpenRTB now supports ‘pod bidding’ for video and audio content streams.
-An ad pod is the term describing an ad break of the type you’d see in a TV-like viewing experience or hear on a radio stream. An ad pod typically contains one or more in-stream creative assets that play out contiguously within a stream of video or audio content. Ad podding features in OpenRTB 2.6 build on capabilities in previous versions for including multiple ad requests within a single bid request object to indicate those ad requests are in some way related. Pod bidding signals communicate additional information about the pod & impression opportunities within the pod such as the sequence of the ad impressions, total pod length, maximum # of ads within a pod, multiple pod associations, and more.
-	
-**Terminology**
-	
-Ad Slot: Space for an individual ad impression within a pod.
-	
-Structured Pod: The seller offers a fully defined pod structure; the number of ad slots, their slot in the ad pod, and duration is pre-defined and static.
+## 7.6 - 비디오 및 오디오 포드 입찰 <a name="podbidding"></a>
 
-![](assets/structured_pod.png)
-	
-Dynamic Pod: The seller offers a pod structure where the number of ads & the duration of each ad in the break is indeterminate, but the total duration and maximum number of ads are constrained. In other words, the total duration of the pod is known, but the number and durations of the individual ads within the break may not be defined ahead of time. This allows bidders more flexibility to optimize their selection of ads across the demand on their platform.
-	
-![](assets/dynamic_pod.png)
-	
-Hybrid Pod: The seller offers a pod structure containing BOTH structured and dynamic components. In other words, the ad pod is composed of some combination of ad slots with predetermined durations, and ad slots constrained by a total duration & maximum number of ads.
+버전 2.6부터 OpenRTB는 비디오 및 오디오 콘텐츠 스트림에 대한 '포드 입찰'을 지원한다.  
+포드(ad pod)는 TV 시청 경험에서 볼 수 있거나 라디오 스트림에서 들을 수 있는 광고 브레이크를 의미한다. 일반적으로 하나 이상의 인스트림 광고 자산이 포함되며, 비디오나 오디오 콘텐츠 스트림 내에서 연속적으로 재생된다. OpenRTB 2.6의 포드 기능은 이전 버전의 기능을 기반으로 하여, 단일 입찰 요청 객체 내에 여러 광고 요청을 포함하고 이러한 광고 요청이 서로 관련이 있음을 나타낸다. 포드 입찰 시그널은 광고 노출 순서, 전체 포드 길이, 포드 내 최대 광고 수, 다중 포드 연관 등과 같은 추가 정보를 전달한다.  
 
-![](assets/hybrid_pod.png)
+**용어 설명**  
 
-**Recommendations**
-	
-- Sellers should only indicate a `slotinpod` of 1, 2, or -1 if they can absolutely guarantee placement of an ad within the first or last slot of an ad pod.
-- Buyers should only indicate a `slotinpod` in response to a dynamic pod segment, including a dynamic component of a hybrid pod, if they only want to buy the first or last ad slot specifically
-- Note that buyers should *only* return a `slotinpod` value in response to a Dynamic portion of a pod.
-- Buyers should avoid using the `slotinpod` attribute in bid responses for structured pods, or the structured components of hybrid pods, because the `impid` field already uniquely identifies the ad slot.
-- Buyers should look for `mincpmpersec` when available, otherwise fall back to `bidfloor`
-- Sellers should include either the required durations (`rqddurs`) attribute, communicating exact durations, OR the `maxduration` & `minduration` attributes, but not both.
-- Sellers are encouraged to include the `maxseq` attribute when offering a dynamic pod with a pod duration
-- Sellers are encouraged to offer dynamic pods when possible to allow bidders to source the most optimal demand from their platforms
-- Buyers should expect that final pod construction is done by the seller. Buyers who submit N bids for a particular pod may find that the seller selects anywhere between 0 to N of those bids to construct the pod that is shown to the user. Furthermore, the seller may co-mingle bids from other buyers in that pod.
+- **광고 슬롯(Ad Slot)**: 포드 내 개별 광고 노출을 위한 공간  
+- **구조화된 포드(Structured Pod)**: 판매자가 완전히 정의된 포드 구조를 제공한다. 광고 슬롯의 수, 포드 내 위치, 지속 시간이 미리 정의되고 고정된다.  
 
-**Pod bidding example scenarios**
-	
-*“Structured” Ad Pod Request/Response*
-	
-This scenario illustrates an example where the bid request contains 2 structured ad pods, and the response corresponds to the first positions in each of the 2 signaled pods.
-	
+![](assets/structured_pod.png)  
+
+- **동적 포드(Dynamic Pod)**: 판매자가 광고 수와 각 광고의 지속 시간이 결정되지 않았지만, 전체 지속 시간과 최대 광고 수가 제한된 포드 구조를 제공한다. 즉, 포드의 전체 지속 시간은 알려져 있지만, 브레이크 내 개별 광고의 수와 지속 시간은 미리 정의되지 않는다. 이를 통해 입찰자는 플랫폼의 수요에 맞춰 광고 선택을 최적화할 수 있는 유연성을 가진다.  
+
+![](assets/dynamic_pod.png)  
+
+- **하이브리드 포드(Hybrid Pod)**: 판매자가 구조화된 구성 요소와 동적 구성 요소를 모두 포함하는 포드 구조를 제공한다. 즉, 포드는 미리 정의된 지속 시간을 가진 광고 슬롯과 전체 지속 시간 및 최대 광고 수에 의해 제한된 광고 슬롯의 조합으로 구성된다.  
+
+![](assets/hybrid_pod.png)  
+
+**권장 사항**  
+
+- 판매자는 첫 번째 또는 마지막 슬롯에 광고를 배치할 수 있다고 절대적으로 확신할 때만 `slotinpod`를 1, 2 또는 -1로 표시해야 한다.  
+- 구매자는 동적 포드 세그먼트(하이브리드 포드의 동적 구성 요소 포함)에 대해 첫 번째 또는 마지막 광고 슬롯만 구매하려는 경우에만 `slotinpod`를 표시해야 한다.  
+- 구매자는 포드의 동적 부분에 대해서만 `slotinpod` 값을 반환해야 한다.  
+- 구매자는 구조화된 포드 또는 하이브리드 포드의 구조화된 구성 요소에 대한 입찰 응답에서 `slotinpod` 속성을 사용하지 않아야 한다. `impid` 필드가 이미 광고 슬롯을 고유하게 식별하기 때문이다.  
+- 구매자는 가능한 경우 `mincpmpersec`를 찾고, 그렇지 않으면 `bidfloor`로 대체해야 한다.  
+- 판매자는 정확한 지속 시간을 전달하는 `rqddurs` 속성 또는 `maxduration` 및 `minduration` 속성 중 하나를 포함해야 하지만 둘 다 포함하지는 않는다.  
+- 판매자는 포드 지속 시간과 함께 동적 포드를 제공할 때 `maxseq` 속성을 포함하는 것이 좋다.  
+- 판매자는 가능한 경우 동적 포드를 제공하여 입찰자가 플랫폼에서 가장 최적의 수요를 확보할 수 있도록 하는 것이 좋다.  
+- 구매자는 최종 포드 구성이 판매자에 의해 완료된다는 점을 이해해야 한다. 특정 포드에 대해 N개의 입찰을 제출한 구매자는 판매자가 사용자에게 보여줄 포드를 구성하기 위해 0에서 N 사이의 입찰을 선택할 수 있다는 점을 알아야 한다. 또한 판매자는 해당 포드에 다른 구매자의 입찰을 혼합할 수 있다.  
+
+**포드 입찰 예제 시나리오**  
+
+*"구조화된" 포드 요청/응답*  
+
+이 시나리오는 입찰 요청에 2개의 구조화된 포드가 포함되고, 응답이 2개의 표시된 포드 각각의 첫 번째 위치에 해당하는 예제를 보여준다.  
+
 ```javascript
 BidRequest
-	
+
 { "imp": 
-	
+
 	[{ "id": "1", 
-	
+
 	"video": { 
-	
+
 		"podid": "pod_1", 
-	
+
 		"podseq”: 1, 
-	
+
 		"slotinpod": 1, 
-	
+
 		"mimes": [ 
-	
+
 			"video/mp4", 
-	
+
 			"video/ogg", 
-	
+
 			"video/webm" 
-	
+
 		], 
-	
+
 		"linearity": 1, 
-	
+
 		"maxduration": 60, 
-	
+
 		"minduration": 0, 
-	
+
 		... 
-	
+
 	}, 
 	"exp": 7200, 
-	
+
 	"bidfloor": 8, 
-	
+
 	"bidfloorcur": "USD", 
-	
+
 	}, 
-	
+
 	{ 
-	
+
 		"id": "2", 
-	
+
 		"video": { 
-	
+
 			"podid": "pod_1", 
-	
+
 			"podseq": 1, 
-	
+
 			"slotinpod": 0, 
-	
+
 			"mimes": [ 
 			
 				"video/mp4", 
-	
+
 				"video/ogg", 
-	
+
 				"video/webm" 
 			], 
 			"linearity": 1, 
 			
 			"maxduration": 30, 
-	
+
 			"minduration": 0, 
-	
+
 			... 
-	
+
 		}, 
-	
+
 		"exp": 7200, 
-	
+
 		"bidfloor": 8, 
-	
+
 		"bidfloorcur": "USD", 
-	
+
 		...
-	
+
 	}, 
-	
+
 	{ 
-	
+
 		"id": "3", 
-	
+
 		"video": { 
-	
+
 			"podid": "pod_2", 
-	
+
 			"podseq": 0, 
-	
+
 			"slotinpod": 1, 
-	
+
 			"mimes": [ 
-	
+
 				"video/mp4", 
-	
+
 				"video/ogg", "
-	
+
 				video/webm" 
-	
+
 			], 
-	
+
 			"linearity": 1, 
-	
+
 			"maxduration": 30, 
-	
+
 			"minduration": 0, 
-	
+
 			... 
-	
+
 		}, 
-	
+
 		"exp": 7200, 
-	
+
 		"bidfloor": 8, 
-	
+
 		"bidfloorcur": "USD", 
-	
+
 		... 
-	
+
 		}, 
-	
+
 		{ 
-	
+
 			"id": "4", 
-	
+
 			"video": { 
-	
+
 				"podid": "pod_2", 
-	
+
 				"podseq": 0, 
-	
+
 				"slotinpod": 0, 
-	
+
 				"mimes": [ 
-	
+
 					"video/mp4", 
-	
+
 					"video/ogg", 
-	
+
 					"video/webm" 
-	
+
 				], 
-	
+
 				"linearity": 1, 
-	
+
 				"maxduration": 60, 
-	
+
 				"minduration": 0, 
-	
+
 				... 
-	
+
 			},
-	
+
 			"exp": 7200, 
-	
+
 			"bidfloor": 8, 
-	
+
 			"bidfloorcur": "USD", 
-	
+
 			... 
-	
+
 		} 
-	
+
 	], 
-	
+
 	... 
-	
+
 }
 ```
-	
-	
+
 ```javascript
 BidResponse
-	
+
 { 
 	"id": "9b9ee818a85d948d5231ffe839a9729a", 
-	
+
 	"seatbid": [{ 
-	
+
 		"bid": [{
-	
+
 			"id": "1", 
-	
+
 			"impid": "1", 
-	
+
 			"price": 0.27, 
-	
+
 			"adid": "123456", 
-	
+
 			"adm": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><VAST version=\"2.0\"> ...", 
-	
+
 			"adomain": [ 
-	
+
 				"advertiserA.com" 
-	
+
 			], 
-	
+
 			"cid": "456789", 
-	
+
 			"crid": "123456", 
-	
+
 			"dur": 30 
-	
+
 		}], 
-	
+
 		"seat": "1"
-	
+
 	}, 
-	
+
 	{ 
-	
+
 		"bid": [{ 
-	
+
 			"id": "2", 
-	
+
 			"impid": "3", 
-	
+
 			"price": 0.27, 
-	
+
 			"adid": "234567", 
-	
+
 			"adm": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><VAST version=\"2.0\"> ...", 
-	
+
 			"adomain": [ 
-	
+
 				"advertiserB.com" 
-	
+
 			], 
-	
+
 			"cid": "567890", 
-	
+
 			"crid": "234567", 
-	
+
 			"dur": 15 
-	
+
 		}], 
-	
+
 		"seat": "2" 
-	
+
 	} 
-	
+
 	], "cur": "USD" }
-	
+
 ```
-	
-	
-*“Dynamic” Ad Pod Request/Response*
-	
-This scenario illustrates an example where the bid request contains 1 dynamic pod, the publisher can guarantee delivery against the first or last slot, and the response contains 3 bids from 3 different advertisers, for the signalled pod. The first bid in the response is only eligible for the first position in the pod.
-	
+
+*"동적" 포드 요청/응답*  
+
+이 시나리오는 입찰 요청에 1개의 동적 포드가 포함되고, 게시자가 첫 번째 또는 마지막 슬롯에 대한 전달을 보장할 수 있으며, 응답이 표시된 포드에 대해 3개의 다른 광고주로부터 3개의 입찰을 포함하는 예제를 보여준다. 응답의 첫 번째 입찰은 포드의 첫 번째 위치에만 적합하다.  
+
 ```javascript
 BidRequest
 
 {
 
 	"imp": [{
-	
+
 		"id": "1",
 		
 		"video": {
@@ -659,7 +659,6 @@ BidRequest
 	
 }
 ```
-
 
 ```javascript
 BidResponse
@@ -773,12 +772,9 @@ BidResponse
 }
 ```
 
-	
-	
-*“Hybrid” Ad Pod Request/Response*
-	
-This scenario illustrates an example where the bid request contains slot 1 in the first impression object and a dynamic pod to fill the duration. The response contains 3 bids from 3 different advertisers, for the signalled pod. The first bid in the response is only eligible for the first position in the pod and the second two responses would be to fill the remainder of the pod.
-	
+*"하이브리드" 포드 요청/응답*  
+
+이 시나리오는 입찰 요청에 첫 번째 임프레션 객체에서 슬롯 1과 지속 시간을 채우기 위한 동적 포드가 포함되고, 응답이 표시된 포드에 대해 3개의 다른 광고주로부터 3개의 입찰을 포함하는 예제를 보여준다. 응답의 첫 번째 입찰은 포드의 첫 번째 위치에만 적합하며, 두 번째와 세 번째 응답은 포드의 나머지 부분을 채우기 위한 것이다.  
 
 ```javascript
 BidRequest
@@ -990,237 +986,247 @@ BidResponse
 }
 ```
 
-	
-	
-## 7.7 - Network vs Channel Example Cases <a name="networkandchannel"></a>
-	
-Starting in version 2.6, OpenRTB now supports Network and Channel objects. See [3.2.23](2.6.md#objectnetwork) and [3.2.24](2.6.md#objectchannel) for details).While these examples are straight forward for traditional linear television, the options for CTV consumption warrant a few examples.
-	
-*Example 1*: A user viewing content on an internet connected device, on an app with multiple channel options (e.g. Discovery+ App > HGTV Channel/show)
-	
-- Discovery is the Network
-- HGTV is the Channel
-	
-*Example 2*: A user viewing content on an internet connected device, on an app that streams content directly (Roku > Hulu > Hulu Original show)
-	
-- Hulu is the network (also identified by `bundle`)
-- Hulu is the channel
-	
- *Example 3*: A user viewing content on an internet connected device, on a device offered channel (Roku > Fubo > Comedy Central show)
-	
-- Roku is the device
-- FuboTV is the network (also identified by `bundle`)
-- Comedy Central is the channel
-	
-*Example 4*: A user is viewing content on an internet connected device, on a device offered channel that licenses content (Samsung TV > Pluto > Pluto TV Spotlight)
-	
-- Samsung TV is the device
-- Pluto is the network (also identified by `bundle`)
-- PlutoTV Spotlight is the channel
-	
-## 7.8 - Counting Billable Events and Tracked Ads <a name="counting"></a>
-	
-There are multiple conventions for how to count billable events or tracked ads via OpenRTB, typically an impression or other such common metric. This section outlines the common ones, addresses common mistakes, and offers a comparison of the approaches.
-	
-This section addresses technical methods available for implementers to consume these events. These events have specific business definitions and criteria for counting eligibility set by the Media Rating Council, and implementers should also consult the[ Media Rating Council’s guidelines](https://mediaratingcouncil.org/standards-and-guidelines).
-	
-Implementers should discuss the definition of the billable event and the technical basis for counting it with their counterparties to determine a mutually acceptable approach.
-	
-**Overview of counting methodologies**
-	
-	
+
+## 7.7 - 네트워크와 채널 예제 사례 <a name="networkandchannel"></a>
+
+OpenRTB 2.6 버전부터 네트워크와 채널 객체를 지원한다. 자세한 내용은 [3.2.23](2.6.md#objectnetwork)과 [3.2.24](2.6.md#objectchannel)을 참고한다. 전통적인 선형 TV에서는 이 개념이 직관적이지만, CTV(Connected TV) 콘텐츠 소비를 위한 옵션은 몇 가지 예제를 통해 살펴볼 필요가 있다.
+
+*예제 1*: 인터넷 연결 기기에서 여러 채널 옵션을 제공하는 앱을 통해 콘텐츠를 시청하는 경우 (예: Discovery+ 앱 > HGTV 채널/프로그램)
+- Discovery는 네트워크
+- HGTV는 채널
+
+*예제 2*: 인터넷 연결 기기에서 콘텐츠를 직접 스트리밍하는 앱을 통해 시청하는 경우 (Roku > Hulu > Hulu 오리지널 프로그램)
+- Hulu는 네트워크 (`bundle`로도 식별됨)
+- Hulu는 채널
+
+*예제 3*: 인터넷 연결 기기에서 기기가 제공하는 채널을 통해 콘텐츠를 시청하는 경우 (Roku > Fubo > Comedy Central 프로그램)
+- Roku는 기기
+- FuboTV는 네트워크 (`bundle`로도 식별됨)
+- Comedy Central은 채널
+
+*예제 4*: 인터넷 연결 기기에서 콘텐츠를 라이선스하는 기기 제공 채널을 통해 시청하는 경우 (Samsung TV > Pluto > Pluto TV Spotlight)
+- Samsung TV는 기기
+- Pluto는 네트워크 (`bundle`로도 식별됨)
+- PlutoTV Spotlight는 채널
+
+
+## 7.8 - 과금 이벤트와 추적 광고 카운팅 <a name="counting"></a>
+
+OpenRTB를 통해 과금 이벤트나 추적 광고를 카운팅하는 방법에는 여러 가지 관례가 있다. 주로 노출수(impression)와 같은 일반적인 지표를 사용한다. 이 섹션에서는 일반적인 방법들을 소개하고, 흔히 발생하는 실수들을 짚어보며, 각 접근 방식의 비교를 제공한다.
+
+이 섹션에서는 구현자가 이러한 이벤트를 소비할 수 있는 기술적 방법을 다룬다. 이러한 이벤트는 Media Rating Council이 정한 특정한 비즈니스 정의와 카운팅 자격 기준을 가지고 있으며, 구현자는 [Media Rating Council의 가이드라인](https://mediaratingcouncil.org/standards-and-guidelines)도 참고해야 한다.
+
+구현자는 과금 이벤트의 정의와 이를 카운팅하는 기술적 기준을 상대방과 논의하여 상호 합의할 수 있는 접근 방식을 결정해야 한다.
+
+**카운팅 방법론 개요**
+
 <table>
   <tr>
-    <td><strong>Method</strong></td>
-    <td><strong>Remarks</strong></td>
+    <td><strong>방법</strong></td>
+    <td><strong>비고</strong></td>
   </tr>
   <tr>
-    <td>Pixel in Markup</td>
-    <td>- Widely supported<br>
-	- Normally fired from client-side browser<br>
-	- Prone to discrepancies<br>
-	- May overcount in some circumstances (i.e. mobile app)<br>
-	- Only applicable for display</td>
+    <td>마크업 내 픽셀</td>
+    <td>- 널리 지원됨<br>
+	- 일반적으로 클라이언트 측 브라우저에서 실행됨<br>
+	- 불일치가 발생하기 쉬움<br>
+	- 특정 상황(예: 모바일 앱)에서 과다 카운팅 가능<br>
+	- 디스플레이 광고에만 적용 가능</td>
   </tr>
   <tr>
-    <td>VAST <impression> event</td>
-    <td>- Recommended for audio/video<br>
-	- Only applicable for audio/video</td>
+    <td>VAST <impression> 이벤트</td>
+    <td>- 오디오/비디오에 권장됨<br>
+	- 오디오/비디오에만 적용 가능</td>
  </tr>
   <tr>
-    <td>Billing notice ("burl")</td>
-    <td>- Best alignment between DSPs and exchanges to count tracked ads<br>
-	- Minimal discrepancy<br>
-	- Not recommended for audio/video, otherwise applicable to all creative types<br>
-	- Usually (and recommended to be) fired server-to-server, but based on an initial client-side event</td>
+    <td>과금 알림 ("burl")</td>
+    <td>- DSP와 거래소 간 추적 광고 카운팅에 가장 적합<br>
+	- 최소한의 불일치<br>
+	- 오디오/비디오에는 권장되지 않음, 그 외 모든 크리에이티브 타입에 적용 가능<br>
+	- 일반적으로(권장됨) 서버 간에 실행되지만, 초기 클라이언트 측 이벤트를 기반으로 함</td>
 </tr>
   <tr>
-    <td>Native eventtrackers/imptrackers/jstrackers</td>
-    <td>- Only applicable to native ads</td>
+    <td>네이티브 eventtrackers/imptrackers/jstrackers</td>
+    <td>- 네이티브 광고에만 적용 가능</td>
   </tr>
 </table>
-	
-	
-**Pixel in markup (banner ads)**
-	
-This is the original convention for counting impressions/tracked ads; in this method, the OpenRTB specification itself does not address how to receive the events. The bidder self-embeds a tracking pixel in their HTML markup (i.e. an <img> tag which makes a request to the bidder’s servers). When the client device loads the markup, it fires the pixel.
-	
-For banner ads on web, this is a widely adopted approach to counting billable events/tracked ads, however some circumstances arise in which there may be discrepancies. Differences in timing between when an exchange’s and a DSP’s pixel load may result in discrepancies, and the noisy nature of the public Internet and variable connectivity quality of client devices may result in one pixel firing but not the other. Additionally, this method does not address certain scenarios well, namely:
-	
-- **Mobile apps** – a billable event may only be counted when the ad is displayed. In mobile apps, the markup is often fetched well in advance of being displayed to buffer against slow and unreliable connections. The markup may never be displayed if the user abandons the app before the ad is displayed – especially for interstitials.
-	
-- **Creative auditing** – markup may be loaded to scan for malvertising, etc., which may generate spurious extra billable/tracked ad events, including for unwon auctions.
-	
-**BEST PRACTICE**: When it is possible to do so, exchanges should avoid using adm-based notifications as the determinant for billing events in the mobile app context, and instead use burl or an independent measurement approach (e.g. OMID), that is predicated upon an ad actually being displayed to the user.
-	
-**VAST <Impression> event (video/audio)**
-	
-The VAST specification includes a provision for <Impression> objects, which demand chain participants can use to request notifications when a billable event has occurred. The IAB prescribes that for video, the VAST <Impression> event is the official signal that the billable event has occurred.
-	
-Demand chain participants are discouraged from using billing notice URLs (burl) for video/audio transactions.
-	
-**Billing notice (“burl”)**
-	
-Billing notice support was introduced in OpenRTB 2.5. In this scenario, **outside** of the ad markup itself, a “billing notice URL” is included in the bid response. A billing event is when a transaction results in a monetary charge from the publisher to an exchange, and subsequently from the exchange or other intermediary to one of their demand-side partners. This event is subject to publisher and exchange-specific business policies that should be conveyed clearly to their partners. For a DSP, this event signals that they can increment spend and deduct the remaining budget against the related campaign. The exchange conveys this event by invoking the URL provided by the demand source in the bid.burl attribute.
-	
-**BEST PRACTICE**: Firing the billing notice URL represents the fulfillment of a business transaction between a publisher and an exchange, or between the exchange and its demand partner. This should not be delegated to another party including a client-side pixel, although a pixel may be the initiating signal for billing to the exchange.
-	
-**BEST PRACTICE**: Exchanges, upon determining that a billable event has occurred (e.g., receipt of client-initiated billable event), and in order to minimize discrepancies between themselves and their demand sources, should invoke the billing notice from the server-side. This should be done as "close" as possible to the moment when the exchange books revenue. See the below section regarding best practices for server-side billing notifications.
-	
-**BEST PRACTICE**: Exchanges are highly encouraged to standardize on a client-initiated render or viewability event as the basis for the billing event. This is generally the most consistent approach in a complex supply chain scenario composed of multiple auction decision points.
-	
-**BEST PRACTICE**: Publishers should generally refer to the [Media Rating Council’s guidelines](https://mediaratingcouncil.org/standards-and-guidelines) to determine when the criteria have been met to consider a transaction billable.
-	
-**BEST PRACTICE**: The public internet is noisy and this event is financial in nature. If an entity calling a billing notice receives a response other than HTTP 200 or 204, it should consider a retry scheme (e.g., every 10 seconds for the next minute). Conversely, an entity receiving billing notices should endeavor to make their endpoint idempotent to avoid double counting.
-	
-**BEST PRACTICE**: When it is possible to do so, exchanges should avoid using adm-based notifications as the determinant for billing events in the mobile app context, and instead use burl or an independent measurement approach (e.g. OMID), that is predicated upon an ad actually being displayed to the user.
-	
-For VAST video/audio, if the `bid.burl` attribute is specified, it should be fired at the same time as the VAST <Impression> event. However, subtle technical issues may lead to additional discrepancies and bidders are cautioned to avoid this scenario. One option is for exchanges nearest a video supply source to use the VAST <Impression> event as their billing signal and then use the billing notice URL (burl) as described.
-	
-**Native eventtrackers, imptrackers, jstrackers**
-	
-For native ads specifically, the OpenRTB Native specification offers options for including an impression tracking URL or script to be loaded at impression time. See the [OpenRTB Native](https://iabtechlab.com/standards/openrtb-native/) spec for more information. For native video, most platforms utilize the impression events within VAST for billing and other event notifications, rather than the structured tracking options available within the native spec.
-	
-**Win notice (“nurl”) – not a billable or tracked ad event**
-	
-At first glance, an auction “win” and the associated win notice (`nurl`) field appears suitable as a proxy for billable/tracked ad counting. However, winning an auction does not guarantee that an impression will indeed be served, and in fact in many cases only a small percentage of won auctions will become impressions. This occurs because of downstream auctions (i.e. client-side header bidding), inability to play back media (in video and audio), etc.
-	
-**Win notice URLs should never be used to count impressions or tracked ads.**
-	
-### Best Practices for server-side billing notifications
-	
-In some cases, publishers or their vendors may choose to fire impression notifications from a server. This is very common in long-form video, which uses server-side ad insertion to coordinate the delivery and measurement of ads to a “thin” client on the user’s device. It is also common in mobile app, where the monetization SDK uses a server-side service to fire burl notifications.
-	
-The following best practice is derived from the [VAST 4.2 spec](https://iabtechlab.com/wp-content/uploads/2019/06/VAST_4.2_final_june26.pdf) (page 17), but recommended for any impression notification (for all formats, regardless of protocol or version).
-	
-**BEST PRACTICE**: When possible, exchanges are encouraged to send billing notice URL (burl) notifications from the server-side, to minimize discrepancies with demand partners. The billable event itself should originate from a client-side event per MRC guidelines.
-	
-**BEST PRACTICE**: When firing impression notifications via HTTP request from the server-side, the notifier should:
-	
-- Make use of the X-Forwarded-For or X-Device-IP HTTP header to indicate the IP address of the client device on behalf of which the notification is being sent.
-- Make use of the X-Device-User-Agent HTTP header to indicate the UserAgent of the client device on behalf of which the notification is being sent.
-	
-These HTTP headers allow recipients of impression notifications to run anti-IVT checks using metadata about the end user device, rather than the server itself.
-	
-**BEST PRACTICE**: When firing impression notifications via HTTP request from the server-side, the notifier should establish an [ads.cert Call Sign](https://iabtechlab.com/wp-content/uploads/2021/09/2-ads-cert-call-signs-pc.pdf) and make use of the [ads.cert Authenticated Connections protocol](https://iabtechlab.com/wp-content/uploads/2021/09/3-ads-cert-authenticated-connections-pc.pdf) to cryptographically sign notifications. This allows recipients of impression notifications, who’ve established ads.cert Call Signs of their own, to authenticate the sender for anti-fraud purposes.
-	
 
-## 7.9 - Digital Out-Of-Home <a name="dooh"></a>
+**마크업 내 픽셀 (배너 광고)**
 
-This section details the unique differences between trading the online world of digital display and real-world aspects of Digital Out-Of-Home (DOOH) media. Each sub section references the key objects that enable DOOH to be traded using the OpenRTB standard.
-	
-### 7.9.1 -  Multiple/Variable Impressions
-The OpenRTB trading method was built around the assumption that a targeted user holds one device and is served an ad as they visit a webpage e.g. One impression = One user.
-OOH Media is a medium where one advert play (a spot) is viewable by everyone who is in the vicinity of the advert being displayed e.g. One ad display = multiple viewers/users (this number can be both greater than *or* less than 1 - due to numbers being based on statistical modeling, fractional values (e.g. .32 impressions per ad display) are common. These rates are also variable as they may be based on hourly-adjusted projections, or real-time sensor data.
+이 방법은 노출수/추적 광고를 카운팅하는 원래의 관례로, OpenRTB 명세 자체는 이벤트를 어떻게 받을지 다루지 않는다. 입찰자는 HTML 마크업에 트래킹 픽셀을 직접 삽입한다(예: 입찰자 서버에 요청을 보내는 <img> 태그). 클라이언트 디바이스가 마크업을 로드하면 픽셀이 실행된다.
 
-Multiplying by decimal values (especially with a CPM) can lead to discrepancies when the ‘buy side’ and ‘sell side’ truncate decimal places. Measures need to be taken to avoid this at an account level.
-	
-The OpenRTB imp object now includes a qty object that enables the multiplier dimension
+웹 배너 광고의 경우, 이 방법은 과금 이벤트/추적 광고를 카운팅하는 데 널리 사용되지만, 불일치가 발생할 수 있는 상황이 있다. 거래소와 DSP의 픽셀 로드 타이밍 차이로 인해 불일치가 발생할 수 있으며, 공용 인터넷의 잡음과 클라이언트 디바이스의 연결 품질 변동으로 인해 한 픽셀은 실행되지만 다른 픽셀은 실행되지 않을 수 있다. 또한 이 방법은 다음과 같은 특정 시나리오를 잘 처리하지 못한다:
 
-### 7.9.2 Unique Device Characterisitcs
-	
-#### 7.9.2.1 Highly Variable Physical Size
-The majority of devices that are served ads via OpenRTB are of a size that one person can hold or lean into. In OOH media the advert can be traded and served on anything from the size of a shelf edge label to the size of multiple football pitches. This far exceeds the size range of anything that can be held in the viewer's hand or hung on their living room wall.
+- **모바일 앱** – 광고가 실제로 표시될 때만 과금 이벤트가 카운팅될 수 있다. 모바일 앱에서는 마크업이 실제로 표시되기 훨씬 전에 미리 가져와 느리고 불안정한 연결에 대비한다. 사용자가 광고가 표시되기 전에 앱을 종료하면 마크업이 전혀 표시되지 않을 수 있다 – 특히 인터스티셜 광고의 경우.
 
-The size and direction of an OOH display not only affects the size of the audience that could see it, but also changes the chances of the audience that will see the advertisement being served.
+- **크리에이티브 감사** – 마크업이 악성 광고 등을 스캔하기 위해 로드될 수 있으며, 이는 낙찰되지 않은 경매를 포함해 불필요한 추가 과금/추적 광고 이벤트를 생성할 수 있다.
 
-A common trait with both OOH and  digital display ads is that there are a wide variety of sizes, resolutions and aspect ratios to be accommodated as the physical displays ‘build into’ physical spaces vary, and may contain additional content (e.g. tickers, application, labels) that cause ad slot sizes to vary.
-	
+**모범 사례**: 가능한 경우, 거래소는 모바일 앱 컨텍스트에서 과금 이벤트를 결정하는 데 adm 기반 알림을 사용하지 말고, 대신 광고가 실제로 사용자에게 표시되었음을 전제로 하는 burl 또는 독립적인 측정 방식을 사용해야 한다.
 
-#### 7.9.2.2 Private Networks / Geo-Location Information
-The majority of commercial DOOH digital displays sit on ‘walled garden’ private ip networks. This protects the displays from a wide spectrum of internet security issues, vulnerabilities and attacks.
+**VAST <Impression> 이벤트 (비디오/오디오)**
 
-This can lead to 3rd party ad serving, cookies and http event logging service being constricted by the ‘safe-lists’ of urls allowed through the ‘walled garden’ security. 
+VAST 명세에는 <Impression> 객체에 대한 규정이 포함되어 있으며, 수요 체인 참여자는 과금 이벤트가 발생했을 때 알림을 요청할 수 있다. IAB는 비디오의 경우 VAST <Impression> 이벤트가 과금 이벤트가 발생했음을 알리는 공식 신호라고 규정한다.
 
-Many Media Owners / Publishers therefore publish proprietary ‘1st Party’ playout reports and confirmations and use ‘1st Party’ ad servers and/or CMS systems.
+수요 체인 참여자는 비디오/오디오 거래에 과금 알림 URL(burl)을 사용하지 않는 것이 좋다.
 
-The use of private ip networks also means that DSPs are not able to use their normal IP address geolocation techniques to get information about where ads are delivered - though publisher-reported locations (e.g. lat/lon, geo information like address, zip, region) are almost always available. In the case of moving media (e.g. taxi-top displays, bus panels, etc.) near-real time GPS-derived information is common.
+**과금 알림 (“burl”)**
 
-#### 7.9.2.3 Non-Persistent Connections / Longer-Than-Realtime Delays
-Most DOOH display panels in urban and remote connections rely on cellular networks for their network connectivity. Whilst a Media Owner may have their own private network with a telecoms provider, the network is still at the mercy of congestion on the local cell tower. Over subscription to cell towers at peak times and locations leads to the DOOH display panels having non-persistent internet connection. 
+과금 알림 지원은 OpenRTB 2.5에서 도입되었다. 이 시나리오에서는 광고 마크업 자체가 아닌 **외부**에 "과금 알림 URL"이 입찰 응답에 포함된다. 과금 이벤트는 거래가 발생하여 게시자로부터 거래소로, 그리고 거래소나 다른 중개자로부터 수요 측 파트너 중 하나로 금전적 청구가 이루어지는 시점이다. 이 이벤트는 게시자와 거래소의 특정 비즈니스 정책에 따라 달라지며, 이는 파트너에게 명확히 전달되어야 한다. DSP의 경우, 이 이벤트는 관련 캠페인의 지출을 증가시키고 남은 예산을 차감할 수 있다는 신호이다. 거래소는 bid.burl 속성에 제공된 URL을 호출하여 이 이벤트를 전달한다.
 
-To mitigate this, some DOOH Media Owners and/or publishers employ ‘forward and store’  technology and give a lead time tolerance from bid request to display. Bids may be requested in advance (to allow pre-buffering or populate “playlists'' on devices, and the confirmation of playback may be delayed due to log collection or processing within publisher systems 
+**모범 사례**: 과금 알림 URL을 실행하는 것은 게시자와 거래소 또는 거래소와 수요 파트너 간의 비즈니스 거래가 완료되었음을 나타낸다. 이는 클라이언트 측 픽셀을 포함한 다른 당사자에게 위임해서는 안 되지만, 픽셀이 거래소에 과금을 시작하는 신호가 될 수는 있다.
 
-The current industry accepted lead time from ‘bid confirmation’ to ‘display’ can be up to 1 to 2 hours.
+**모범 사례**: 거래소는 과금 이벤트가 발생했음을 확인한 후(예: 클라이언트 시작 과금 이벤트 수신), 수요 소스와의 불일치를 최소화하기 위해 서버 측에서 과금 알림을 실행해야 한다. 이는 거래소가 수익을 기록하는 시점에 최대한 가깝게 이루어져야 한다. 서버 측 과금 알림에 대한 모범 사례는 아래 섹션을 참조한다.
 
-#### 7.9.2.4 Proprietary Device Attributes
-Unlike the TV, Tablet and Mobile phone market, there are no dominant global brands supplying digital OOH screen technology to the market. Media Owners and/or Publishers source their own screen technology from a wide variety of manufacturers, technologies and installation partners resulting in each network having its own proprietary device types,identifiers, and other attributes such as user agent strings.
+**모범 사례**: 거래소는 클라이언트 시작 렌더링 또는 가시성 이벤트를 과금 이벤트의 기준으로 표준화하는 것이 좋다. 이는 일반적으로 여러 경매 결정 지점으로 구성된 복잡한 공급 체인 시나리오에서 가장 일관된 접근 방식이다.
 
-Some countries have attempted to create standards for describing the shape, size and format of the digital units, but to date there is no recognised global standard for identifying a digital out of home device or the users who it may reach.
+**모범 사례**: 게시자는 일반적으로 [Media Rating Council의 가이드라인](https://mediaratingcouncil.org/standards-and-guidelines)을 참조하여 거래가 과금 가능한 기준을 충족했는지 확인해야 한다.
 
-In the case of user agents, oftentimes non-standard strings are used by Media Owners, which has been known to plague device detection and traffic protection systems. It is advised that Media Owners comply with the HTTP user agent standards set forth by the IETF and submit their user agents to the IAB Spiders and Bots List using the "Submit here" button on this page.
+**모범 사례**: 공용 인터넷은 잡음이 많고 이 이벤트는 재정적 성격을 띤다. 과금 알림을 호출하는 엔티티가 HTTP 200 또는 204 이외의 응답을 받으면 재시도 방안을 고려해야 한다(예: 다음 1분 동안 10초마다). 반대로, 과금 알림을 받는 엔티티는 이중 카운팅을 피하기 위해 엔드포인트를 멱등성(idempotent)으로 만들기 위해 노력해야 한다.
 
-#### 7.9.2.5 Key Object Attributes To Use For DOOH Device Reference in OpenRTB
-Key objects such as imp.qty and dooh have been added to the OpenRTB specification to enable the programmatic trading of the medium. The following table gives guidance to the use of more common OpenRTB object references when transacting DOOH bids.
+**모범 사례**: 가능한 경우, 거래소는 모바일 앱 컨텍스트에서 과금 이벤트를 결정하는 데 adm 기반 알림을 사용하지 말고, 대신 광고가 실제로 사용자에게 표시되었음을 전제로 하는 burl 또는 독립적인 측정 방식을 사용해야 한다.
 
-| Object Reference        | Type                | Implementation Guidance                                                                                                                                                                                                                   |
+VAST 비디오/오디오의 경우, `bid.burl` 속성이 지정되면 VAST <Impression> 이벤트와 동시에 실행되어야 한다. 그러나 미묘한 기술적 문제로 인해 추가 불일치가 발생할 수 있으며, 입찰자는 이 시나리오를 피하는 것이 좋다. 한 가지 옵션은 비디오 공급 소스에 가장 가까운 거래소가 VAST <Impression> 이벤트를 과금 신호로 사용한 후, 과금 알림 URL(burl)을 설명된 대로 사용하는 것이다.
+
+**네이티브 eventtrackers, imptrackers, jstrackers**
+
+특히 네이티브 광고의 경우, OpenRTB 네이티브 명세는 노출 시점에 로드할 노출 추적 URL이나 스크립트를 포함할 수 있는 옵션을 제공한다. 자세한 내용은 [OpenRTB 네이티브](https://iabtechlab.com/standards/openrtb-native/) 명세를 참조한다. 네이티브 비디오의 경우, 대부분의 플랫폼은 네이티브 명세 내의 구조화된 추적 옵션보다 VAST 내의 노출 이벤트를 과금 및 기타 이벤트 알림에 사용한다.
+
+**낙찰 알림 (“nurl”) – 과금 또는 추적 광고 이벤트가 아님**
+
+언뜻 보기에 경매 "낙찰"과 관련된 낙찰 알림(`nurl`) 필드는 과금/추적 광고 카운팅의 대리 지표로 적합해 보인다. 그러나 경매에서 승리한다고 해서 노출이 실제로 제공될 것이라는 보장은 없으며, 실제로 많은 경우 낙찰된 경매 중 일부만 노출로 이어질 수 있다. 이는 다운스트림 경매(예: 클라이언트 측 헤더 입찰), 미디어 재생 불가(비디오 및 오디오) 등으로 인해 발생한다.
+
+**낙찰 알림 URL은 절대로 노출수나 추적 광고를 카운팅하는 데 사용해서는 안 된다.**
+
+
+### 서버 측 청구 알림을 위한 모범 사례
+
+경우에 따라 퍼블리셔나 벤더가 서버에서 노출 알림을 보내는 방식을 선택할 수 있다. 이는 장편 동영상에서 흔히 사용되는데, 서버 측 광고 삽입(SSAI)을 통해 사용자 기기의 '씬' 클라이언트에게 광고 전달과 측정을 조정한다. 또한 모바일 앱에서도 자주 사용되는데, 여기서는 수익화 SDK가 서버 측 서비스를 통해 청구 알림 URL(burl)을 보낸다.
+
+다음 모범 사례는 [VAST 4.2 사양](https://iabtechlab.com/wp-content/uploads/2019/06/VAST_4.2_final_june26.pdf)(17페이지)에서 가져왔지만, 모든 노출 알림(프로토콜이나 버전에 관계없이 모든 형식에 대해)에 권장된다.
+
+**모범 사례**: 가능한 경우, 교환 플랫폼은 수요 파트너와의 불일치를 최소화하기 위해 서버 측에서 청구 알림 URL(burl)을 보내는 것이 좋다. 청구 가능 이벤트 자체는 MRC 가이드라인에 따라 클라이언트 측 이벤트에서 발생해야 한다.
+
+**모범 사례**: 서버 측에서 HTTP 요청을 통해 노출 알림을 보낼 때, 알림 발송자는 다음을 준수해야 한다:
+
+- X-Forwarded-For 또는 X-Device-IP HTTP 헤더를 사용해 알림을 대신 보내는 클라이언트 기기의 IP 주소를 표시한다.
+- X-Device-User-Agent HTTP 헤더를 사용해 알림을 대신 보내는 클라이언트 기기의 UserAgent를 표시한다.
+
+이러한 HTTP 헤더를 사용하면 노출 알림 수신자가 서버 자체가 아닌 최종 사용자 기기에 대한 메타데이터를 사용해 반-사기 방지 검사를 실행할 수 있다.
+
+**모범 사례**: 서버 측에서 HTTP 요청을 통해 노출 알림을 보낼 때, 알림 발송자는 [ads.cert Call Sign](https://iabtechlab.com/wp-content/uploads/2021/09/2-ads-cert-call-signs-pc.pdf)을 설정하고 [ads.cert Authenticated Connections 프로토콜](https://iabtechlab.com/wp-content/uploads/2021/09/3-ads-cert-authenticated-connections-pc.pdf)을 사용해 알림에 암호화된 서명을 추가해야 한다. 이를 통해 노출 알림 수신자가 자신의 ads.cert Call Sign을 설정한 경우, 발신자를 인증해 사기 방지 목적으로 사용할 수 있다.
+
+
+## 7.9 - 디지털 아웃오브홈(DOOH) <a name="dooh"></a>
+
+이 섹션에서는 디지털 디스플레이의 온라인 세계와 디지털 아웃오브홈(DOOH) 미디어의 실제 세계 간의 고유한 차이점을 자세히 설명한다. 각 하위 섹션은 OpenRTB 표준을 사용해 DOOH를 거래할 수 있게 하는 주요 객체를 참조한다.
+
+
+### 7.9.1 - 다중/가변 노출
+
+OpenRTB 거래 방식은 타겟팅된 사용자가 하나의 기기를 가지고 있으며 웹페이지를 방문할 때 하나의 광고를 제공받는다는 가정에 기반을 두고 있다. 즉, 하나의 노출은 하나의 사용자에 해당한다. 
+
+OOH 미디어는 하나의 광고 재생(스팟)이 광고가 표시되는 주변에 있는 모든 사람에게 보여지는 매체이다. 이 경우 하나의 광고 표시는 여러 명의 시청자/사용자에게 노출된다. 이 숫자는 1보다 크거나 작을 수 있으며, 통계 모델링을 기반으로 하기 때문에 소수 값(예: 광고 표시당 0.32 노출)이 일반적이다. 이러한 비율은 시간에 따라 조정된 예측이나 실시간 센서 데이터를 기반으로 변동할 수 있다.
+
+소수 값을 곱할 때(특히 CPM의 경우) '구매 측'과 '판매 측'이 소수점 이하를 잘라내는 경우 불일치가 발생할 수 있다. 이를 방지하기 위해 계정 수준에서 조치를 취해야 한다.
+
+OpenRTB의 imp 객체에는 이제 배수 차원을 가능하게 하는 qty 객체가 포함되어 있다.
+
+
+### 7.9.2 고유한 기기 특성
+
+#### 7.9.2.1 물리적 크기의 다양성
+
+OpenRTB를 통해 광고가 제공되는 대부분의 기기는 한 사람이 들거나 기대어 사용할 수 있는 크기다. 하지만 OOH(옥외) 미디어에서는 선반 가장자리의 라벨 크기부터 여러 축구 경기장 크기까지 다양한 크기의 광고를 거래하고 제공할 수 있다. 이는 시청자가 손에 들거나 거실 벽에 걸 수 있는 크기를 훨씬 뛰어넘는다.
+
+OOH 디스플레이의 크기와 방향은 광고를 볼 수 있는 관객의 규모뿐만 아니라, 광고를 실제로 볼 가능성에도 영향을 미친다.
+
+OOH와 디지털 디스플레이 광고의 공통점은 다양한 크기, 해상도, 종횡비를 수용해야 한다는 점이다. 물리적 디스플레이가 물리적 공간에 '구축되는' 방식이 다양하며, 추가 콘텐츠(예: 티커, 애플리케이션, 라벨)가 포함될 수 있어 광고 슬롯의 크기가 달라질 수 있다.
+
+
+#### 7.9.2.2 사설 네트워크 및 위치 정보
+
+대부분의 상업용 DOOH 디지털 디스플레이는 '왈드 가든(walled garden)' 형태의 사설 IP 네트워크에 위치한다. 이는 디스플레이를 다양한 인터넷 보안 문제, 취약점 및 공격으로부터 보호한다.
+
+이러한 구조는 '왈드 가든' 보안을 통해 허용된 URL '안전 목록(safe-lists)'에 의해 제3자 광고 서비스, 쿠키 및 HTTP 이벤트 로깅 서비스가 제한될 수 있다는 것을 의미한다.
+
+따라서 많은 미디어 소유자 및 퍼블리셔는 자체적인 '1st Party' 플레이아웃 리포트와 확인서를 발행하며, '1st Party' 광고 서버 및/또는 CMS 시스템을 사용한다.
+
+사설 IP 네트워크의 사용은 DSP(디지털 광고 플랫폼)가 일반적인 IP 주소 기반 지리적 위치 정보 기술을 사용해 광고가 전달된 위치에 대한 정보를 얻을 수 없음을 의미한다. 하지만 퍼블리셔가 제공한 위치 정보(예: 위도/경도, 주소, 우편번호, 지역 등)는 거의 항상 사용 가능하다. 이동 중인 미디어(예: 택시 상단 디스플레이, 버스 패널 등)의 경우, 근실시간 GPS 기반 정보가 일반적으로 사용된다.
+
+
+#### 7.9.2.3 비지속적 연결 / 실시간보다 긴 지연
+
+도시와 외곽 지역에 설치된 대부분의 DOOH 디스플레이 패널은 네트워크 연결을 위해 셀룰러 네트워크에 의존한다. 미디어 소유자가 통신사와의 전용 네트워크를 보유하고 있더라도, 여전히 지역 셀 타워의 혼잡 상황에 영향을 받는다. 특정 시간대와 위치에서 셀 타워의 과도한 사용은 DOOH 디스플레이 패널이 비지속적인 인터넷 연결을 갖게 만든다.
+
+이 문제를 해결하기 위해 일부 DOOH 미디어 소유자와 퍼블리셔는 '전송 및 저장' 기술을 사용하고, 입찰 요청부터 디스플레이까지 일정한 시간 여유를 둔다. 입찰 요청을 미리 받아 디바이스에 콘텐츠를 미리 버퍼링하거나 '플레이리스트'를 채우고, 플레이백 확인은 퍼블리셔 시스템 내에서 로그 수집이나 처리가 완료된 후에 이루어진다.
+
+현재 업계에서 인정하는 '입찰 확인'부터 '디스플레이'까지의 시간은 최대 1~2시간이다.
+
+
+#### 7.9.2.4 디바이스 고유 속성
+
+TV, 태블릿, 모바일 폰 시장과 달리 디지털 옥외 광고(Digital OOH) 스크린 기술을 공급하는 전 세계적으로 지배적인 브랜드는 없다. 미디어 소유자나 퍼블리셔는 다양한 제조업체, 기술, 설치 파트너로부터 자신만의 스크린 기술을 조달한다. 이로 인해 각 네트워크마다 고유한 디바이스 타입, 식별자, 사용자 에이전트 문자열 등의 속성을 가지게 된다.
+
+일부 국가에서는 디지털 광고 단위의 형태, 크기, 포맷을 설명하기 위한 표준을 만들려고 시도했지만, 현재까지 디지털 옥외 광고 디바이스나 이를 통해 도달할 수 있는 사용자를 식별하는 데 있어 인정받는 글로벌 표준은 없다.
+
+사용자 에이전트의 경우, 미디어 소유자가 비표준 문자열을 사용하는 경우가 많다. 이는 디바이스 감지 및 트래픽 보호 시스템에 문제를 일으키는 것으로 알려져 있다. 미디어 소유자는 IETF가 정한 HTTP 사용자 에이전트 표준을 준수하고, 해당 페이지의 "Submit here" 버튼을 사용해 IAB Spiders and Bots List에 사용자 에이전트를 제출하는 것이 좋다.
+
+
+#### 7.9.2.5 OpenRTB에서 DOOH 디바이스 참조를 위한 주요 객체 속성
+
+DOOH(디지털 아웃 오브 홈) 미디어의 프로그래매틱 거래를 가능하게 하기 위해 OpenRTB 스펙에 `imp.qty` 및 `dooh`와 같은 주요 객체가 추가되었다. 다음 표는 DOOH 입찰 거래 시 자주 사용되는 OpenRTB 객체 참조에 대한 가이드를 제공한다.
+
+| 객체 참조                 | 타입                | 구현 가이드                                                                                                                                                                                                                   |
 | ----------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| device.geo              | object              | Since ip may not be available, geo location  lat / lon field is required for DOOH transactions. geo.type is recommended.                                                                                                                  |
-| device.devicetype       | string array        | Digital out of home devices shall be identified as type 8.                                                                                                                                                                                |
-| device.ppi              | integer             | Screen dimensions in inches can be calculated using ppi, w and h.                                                                                                                                                                         |
-| device.ifa              | string              | A device ID used to identify an individual out of home device. The device.ifa should not be used as a user identifier or for audience targeting purposes, but may be used for purposes like frequency capping.|
-| device.ifa_type        | string              | For DOOH this is usually given as "ppid" to show this is a publisher-provided device id or "sspid" to show this is an exchange-provided device id                                                                                         |
-| device.eids             | object              | Used to send additional identifiers. e.g. geopath.org or oohspace.co.uk or to signal the ifa provider. See AdCom eids                                                                                                                     |
-| imp.video.boxingallowed | integer             | For DOOH, when boxingallowed = 0, the video aspect ratio should strictly match that of the placement, as determined by the video w and h fields.                                                                                          |
-| imp.dt                  | float               | Timestamp when the item is estimated to be fulfilled (e.g. when a DOOH impression will be displayed) in Unix format (i.e., milliseconds since the epoch).                                                                                 |
-                                                                                                             
-### 7.9.3 Commercially Critical Ad Quality
-One bad advert being served at one time to one person is survivable. 
-One bad advert served at one time to 1000’s of people in a public place will lead to a Media Owner and/or Publisher risking their contract/permission to serve ads to networks of screens. 
-
-All ads being served on large commercial networks need to be manually pre-approved (typically involving human, visual review) by the publisher (and in some cases other 3rd parties e.g. venue landlords) before any bids can be accepted for display.
-
-This means typical lead times for creative approval are on the order of “working days” - though they may be expedited through operational processes. It also means many publishers and networks will prohibit creative rotation, dynamic content, or changes post-approval - pending further review. 3rd-Party AdServing (3PAS) support (and support for HTML) is possible, but not guaranteed - including limitations of variations of typical banner ads like dynamic content, animation, or DCO.
-
-For the above reasons, use of IAB Ad Management API (https://github.com/InteractiveAdvertisingBureau/AdManagementAPI/blob/master/Ad%20Management%20API%201.0%20FINAL.md) for creative submission to DOOH exchanges is strongly recommended, though many SSPs may have proprietary extensions to allow submitting ads to specific individual publishers.
+| device.geo              | 객체                | IP 주소를 사용할 수 없는 경우, DOOH 거래를 위해 위도(lat)와 경도(lon) 필드가 필수적이다. `geo.type`도 권장된다.                                                                                                                  |
+| device.devicetype       | 문자열 배열         | 디지털 아웃 오브 홈 디바이스는 타입 8로 식별해야 한다.                                                                                                                                                                                |
+| device.ppi              | 정수                | PPI, 너비(w), 높이(h)를 사용해 화면 크기를 인치 단위로 계산할 수 있다.                                                                                                                                                                         |
+| device.ifa              | 문자열              | 개별 아웃 오브 홈 디바이스를 식별하기 위한 디바이스 ID. `device.ifa`는 사용자 식별이나 대상자 타겟팅 목적으로 사용하지 않아야 하며, 주로 빈도 제한과 같은 목적으로 활용할 수 있다.|
+| device.ifa_type        | 문자열              | DOOH의 경우, 일반적으로 "ppid"(퍼블리셔 제공 디바이스 ID) 또는 "sspid"(거래소 제공 디바이스 ID)로 표시된다.                                                                                         |
+| device.eids             | 객체                | 추가 식별자를 전송하기 위해 사용된다. 예를 들어, `geopath.org` 또는 `oohspace.co.uk`와 같은 정보나 `ifa` 제공자를 시그널링할 수 있다. AdCom의 `eids`를 참고한다.                                                                                     |
+| imp.video.boxingallowed | 정수                | DOOH의 경우, `boxingallowed = 0`일 때 비디오의 가로세로 비율은 반드시 배치 위치의 비율과 일치해야 하며, 이는 비디오의 너비(w)와 높이(h) 필드로 결정된다.                                                                                          |
+| imp.dt                  | 실수                | 아이템이 이행될 것으로 예상되는 시간(예: DOOH 광고가 표시될 시간)을 Unix 형식(에포크 이후 밀리초)으로 기록한 타임스탬프.                                                                                 |
 
 
-### 7.9.4 DOOH Pricing
-Bid price and clearing price should be expressed as a CPM rate per impression.  
-For example, if an advertiser is bidding $2.50 CPM on a 1st price auction, and the auction is for 30.3 impressions:
-multiplier = 30.3 (Impression multiplier from bid request)
-bid.price = 2.50 (Bid price in CPM from bid response)
+### 7.9.3 상업적으로 중요한 광고 품질
 
-If the advertiser wins, tracking URL (e.g. burl) macros will contain the following values:
-${AUCTION_PRICE} = 2.50 (The clearing price of the auction)
-${AUCTION_MULTIPLIER} = 30.3 (The total quantity of impressions won; for confirmation only. This should always be less than or equal to the multiplier value sent in the bid request. This value is a float value greater than zero and may be less than one.)
+한 사람에게 한 번 잘못된 광고가 노출되는 것은 버틸 수 있다. 하지만 공공장소에서 수천 명에게 동시에 잘못된 광고가 노출된다면, 미디어 소유자나 퍼블리셔는 스크린 네트워크에 광고를 제공할 수 있는 계약이나 권한을 잃을 위험에 처하게 된다.
 
-To calculate the total cost of the transaction:
+대규모 상업 네트워크에 게재되는 모든 광고는 퍼블리셔(그리고 경우에 따라 장소 임대인 같은 제3자)의 사전 승인을 받아야 한다. 이 승인 과정은 일반적으로 사람이 직접 시각적으로 검토하는 방식으로 이루어진다. 이 과정을 거치지 않으면 광고를 게재할 수 없다.
+
+이러한 이유로 광고 크리에이티브 승인에는 보통 '영업일' 단위의 시간이 소요된다. 물론 운영 프로세스를 통해 이를 단축할 수도 있다. 또한 많은 퍼블리셔와 네트워크는 승인 후 크리에이티브의 변경, 동적 콘텐츠, 또는 로테이션을 금지한다. 추가 검토가 필요하기 때문이다. 제3자 광고 서빙(3PAS)과 HTML 지원이 가능할 수 있지만, 동적 콘텐츠, 애니메이션, DCO 같은 일반 배너 광고의 변형에는 제한이 따를 수 있다.
+
+이러한 이유로 DOOH(디지털 아웃오브홈) 광고 교환에 크리에이티브를 제출할 때는 IAB 광고 관리 API(https://github.com/InteractiveAdvertisingBureau/AdManagementAPI/blob/master/Ad%20Management%20API%201.0%20FINAL.md) 사용을 강력히 권장한다. 다만, 많은 SSP(공급자 측 플랫폼)는 특정 퍼블리셔에게 광고를 제출할 수 있도록 자체 확장 기능을 제공할 수도 있다.
+
+
+### 7.9.4 DOOH 가격 책정
+
+입찰가와 클리어링 가격은 CPM(천회 노출당 비용)으로 표현한다.  
+예를 들어, 광고주가 1차 가격 경매에서 $2.50 CPM으로 입찰하고, 경매가 30.3회 노출을 대상으로 한다면:
+multiplier = 30.3 (입찰 요청에서 전달된 노출 배수)
+bid.price = 2.50 (입찰 응답에서 전달된 CPM 기준 입찰가)
+
+광고주가 경매에서 승리하면, 트래킹 URL(예: burl) 매크로에는 다음과 같은 값이 포함된다:
+${AUCTION_PRICE} = 2.50 (경매의 클리어링 가격)
+${AUCTION_MULTIPLIER} = 30.3 (획득한 총 노출 수; 확인용. 이 값은 항상 입찰 요청에서 전달된 배수 값보다 작거나 같다. 또한 이 값은 0보다 큰 부동소수점이며, 1보다 작을 수도 있다.)
+
+거래의 총 비용을 계산하는 공식은 다음과 같다:
 (AUCTION_PRICE / 1000) * AUCTION_MULTIPLIER = COST
 (2.50 / 1000) * 30.3 = $0.07575
 
-The above auction would translate to an invoice of $0.07575.
+위 경매 결과는 $0.07575의 청구서로 이어진다.
 
-	
-### 7.9.5 Auction Notifications
-In DOOH, there can be significant delay between winning an auction, and the creative actually being rendered. For this reason, it is strongly recommended to separate the win and billing events, following OpenRTB best practises:
-- nurl - Auction event notification URL fired when a bid has won the auction. Not a guarantee that impressions will occur.
-- burl - Auction event billing URL fired when the creative has rendered on screen and impression[s] are billable.
 
-	
-### 7.9.6 - DOOH Example Scenarios
+### 7.9.5 경매 알림
 
-#### 7.9.6.1 - DOOH Banner Bid Request
+DOOH(디지털 아웃오브홈)에서는 경매에서 승리한 후 실제로 크리에이티브가 렌더링되기까지 상당한 지연이 발생할 수 있다. 이러한 이유로 OpenRTB 모범 사례에 따라 승리 이벤트와 청구 이벤트를 분리하는 것을 강력히 권장한다:
+- **nurl**: 경매에서 입찰이 승리했을 때 발생하는 경매 이벤트 알림 URL. 이는 반드시 노출이 발생한다는 보장은 아니다.
+- **burl**: 크리에이티브가 화면에 렌더링되고 노출이 청구 가능한 상태가 되었을 때 발생하는 경매 이벤트 청구 URL.
+
+
+### 7.9.6 - DOOH 예제 시나리오
+
+#### 7.9.6.1 - DOOH 배너 입찰 요청
 
 ```javascript
 {
@@ -1323,7 +1329,8 @@ In DOOH, there can be significant delay between winning an auction, and the crea
 }
 ```
 
-#### 7.9.6.2 - Banner Bid Response
+
+#### 7.9.6.2 - 배너 입찰 응답
 
 ```javascript
 {
@@ -1369,7 +1376,8 @@ In DOOH, there can be significant delay between winning an auction, and the crea
 }
 ```
 
-#### 7.9.6.3 - DOOH Video Bid Request
+
+#### 7.9.6.3 - DOOH 비디오 입찰 요청
 
 ```javascript
 {
@@ -1455,7 +1463,8 @@ In DOOH, there can be significant delay between winning an auction, and the crea
 }
 ```
 
-#### 7.9.6.4 - DOOH Video Bid Response
+
+#### 7.9.6.4 - DOOH 비디오 입찰 응답
 
 ```javascript
 {
@@ -1500,129 +1509,151 @@ In DOOH, there can be significant delay between winning an auction, and the crea
 }
 ```
 
-## 7.10 - Updated Video Signals <a name="videosignals"></a>
-#### 7.10.1 - Examples 
-#### 7.10.1.1<strong> Instream Video:</strong>
-Pre-roll, mid-roll, and post-roll ads that are played before, during or after the streaming video content that the consumer has requested. Instream video must be set to “sound on” by default at player start, or have explicitly clear user intent to watch the video content. While there may be other content surrounding the player, the video content must be the focus of the user’s visit. It should remain the primary content on the page and the only video player in-view capable of audio when playing. If the player converts to floating/sticky subsequent ad calls should accurately convey the updated player size.
+
+## 7.10 - 업데이트된 비디오 시그널 <a name="videosignals"></a>
+
+#### 7.10.1 - 예제
+
+#### 7.10.1.1<strong> 인스트림 비디오:</strong>
+
+소비자가 요청한 스트리밍 비디오 콘텐츠 전, 중간 또는 후에 재생되는 프리롤, 미드롤, 포스트롤 광고. 인스트림 비디오는 플레이어 시작 시 기본적으로 "소리 켜짐" 상태로 설정되거나, 사용자가 비디오 콘텐츠를 시청하려는 명확한 의도가 있어야 한다. 플레이어 주변에 다른 콘텐츠가 있을 수 있지만, 비디오 콘텐츠는 사용자의 방문 목적이어야 한다. 페이지의 주요 콘텐츠로 유지되고, 재생 중 오디오를 지원하는 유일한 비디오 플레이어여야 한다. 플레이어가 플로팅/스틱키 상태로 전환되면, 이후 광고 호출은 업데이트된 플레이어 크기를 정확히 전달해야 한다.
 	
 ![](assets/Instream.gif)
-	
-#### 7.10.1.2<strong> Accompanying Content:</strong>
-Pre-roll, mid-roll, and post-roll ads that are played before, during, or after streaming video content. The video player loads and plays before, between, or after paragraphs of text or graphical content, and starts playing only when it enters the viewport. Accompanying content should only start playback upon entering the viewport. It may convert to a floating/sticky player as it scrolls off the page.
+
+
+#### 7.10.1.2 <strong>동반 콘텐츠:</strong>
+
+스트리밍 비디오 콘텐츠 전, 중간, 후에 재생되는 프리롤, 미드롤, 포스트롤 광고를 말한다. 비디오 플레이어는 텍스트나 그래픽 콘텐츠의 문단 전, 중간, 후에 로드되고 재생되며, 뷰포트에 진입했을 때만 재생을 시작한다. 동반 콘텐츠는 뷰포트에 들어왔을 때만 재생을 시작해야 한다. 페이지를 스크롤하며 벗어날 때는 플로팅/스틱키 플레이어로 전환될 수 있다.
 
 ![](assets/Accompanying%20Content.gif)
 
-#### 7.10.1.3<strong> Interstitial: </strong>
-Video ads that are played without video content. During playback, it must be the primary focus of the page and take up the majority of the viewport and cannot be scrolled out of view. This can be in placements like in-app video or slideshows.
+
+#### 7.10.1.3<strong> 인터스티셜 광고: </strong>
+
+비디오 콘텐츠 없이 재생되는 비디오 광고를 말한다. 재생 중에는 페이지의 주된 초점이 되어야 하며, 뷰포트의 대부분을 차지하고 스크롤로 화면 밖으로 이동할 수 없다. 앱 내 비디오나 슬라이드쇼와 같은 위치에 배치될 수 있다.
 
 ![](https://github.com/hillslatt/openrtb2.x/blob/develop/assets/interstitial.gif)
 
-#### 7.10.1.4<strong> No Content/Standalone: </strong> 
-Video ads that are played without streaming video content. This can be in placements like slideshows, native feeds, in-content or sticky/floating.
+
+#### 7.10.1.4<strong> 독립형 콘텐츠 없음: </strong>
+
+스트리밍 동영상 콘텐츠 없이 재생되는 동영상 광고. 슬라이드쇼, 네이티브 피드, 콘텐츠 내부 또는 스크롤 시 고정되는 형태로 배치될 수 있다.
 
 ![](assets/No%20Content_Standalone%20-%20Slideshow.gif)
 
 
-#### 7.10.2 - Using plcmt attribute in Object: Video
+#### 7.10.2 - Object: Video에서 plcmt 속성 사용하기
 
-The release of updated definitions in AdCOM List: Plcmt Subtypes – Video and a new attribute (<code>plcmt</code> in [Object: Video](2.6.md#objectvideo)) to give publishers a way to signal video inventory in a way that more closely aligns with the updated ad format guidelines without breaking existing workstreams. 
+AdCOM의 업데이트된 정의와 새로운 속성(`plcmt` 속성)이 [Object: Video](2.6.md#objectvideo)에 추가되었다. 이를 통해 게시자는 기존 작업 흐름을 방해하지 않으면서도 업데이트된 광고 형식 가이드라인에 더 부합하는 방식으로 비디오 인벤토리를 신호할 수 있다.
 
-<strong> Case 1: In-stream to Instream </strong>
-	
-If a publisher or player would like to send both the legacy value for In-Stream and the updated definition of Instream it should send the legacy value of placement=1 using the legacy <code>placement</code> attribute and the updated value of plcmt=1 using the <code>plcmt</code> attribute attributes in the video object. 
+<strong> 사례 1: In-stream에서 Instream으로 </strong>
 
-Here is an example ad request: 
+게시자나 플레이어가 기존의 In-Stream 값과 업데이트된 Instream 정의를 모두 전송하려면, 기존 `placement` 속성에 `placement=1` 값을, 업데이트된 `plcmt` 속성에 `plcmt=1` 값을 비디오 객체에 포함시켜야 한다.
+
+다음은 광고 요청 예시이다:
 
 	"video": {
-	“placement”: “1”
+	“placement”: “1”,
 	“plcmt”: “1” 
 	}
-	
-The presence of the <code>placement</code> attribute refers to the legacy <a href="https://github.com/InteractiveAdvertisingBureau/AdCOM/blob/master/AdCOM%20v1.0%20FINAL.md#list--placement-subtypes---video-"> List: Placement Subtypes - Video in AdCOM </a>. It describes the inventory as In-stream per that definition. The presence of the <code>plcmt</code> attribute points to the updated <a href="https://github.com/InteractiveAdvertisingBureau/AdCOM/blob/master/AdCOM%20v1.0%20FINAL.md#list--plcmt-subtypes---video-">List: Plcmt Subtypes - Video</a> and defines the same inventory as “Instream” under the updated definition. 
 
-<strong> Case 2: In-Article to No Content/Standalone </strong>
-	
-If a publisher or player would like to send both the legacy value for In-Article and the updated definition of No Content/Standalone it should send the legacy value of placement=3 using the legacy <code>placement</code> attribute and the updated value of plcmt=4 using the <code>plcmt</code> attribute attributes in the video object. 
+`placement` 속성은 [AdCOM의 기존 List: Placement Subtypes - Video](https://github.com/InteractiveAdvertisingBureau/AdCOM/blob/master/AdCOM%20v1.0%20FINAL.md#list--placement-subtypes---video-)를 참조하며, 해당 정의에 따라 인벤토리를 In-stream으로 설명한다. 반면 `plcmt` 속성은 [업데이트된 List: Plcmt Subtypes - Video](https://github.com/InteractiveAdvertisingBureau/AdCOM/blob/master/AdCOM%20v1.0%20FINAL.md#list--plcmt-subtypes---video-)를 가리키며, 동일한 인벤토리를 업데이트된 정의에 따라 "Instream"으로 정의한다.
 
-Here is an example ad request: 
+<strong> 사례 2: In-Article에서 No Content/Standalone으로 </strong>
+
+게시자나 플레이어가 기존의 In-Article 값과 업데이트된 No Content/Standalone 정의를 모두 전송하려면, 기존 `placement` 속성에 `placement=3` 값을, 업데이트된 `plcmt` 속성에 `plcmt=4` 값을 비디오 객체에 포함시켜야 한다.
+
+다음은 광고 요청 예시이다:
 
 	"video": {
-	“placement”: “3”
+	“placement”: “3”,
 	“plcmt”: “4” 
 	}
 
-## 7.11 - Guidance on the Use of Floors <a name="floors"></a>
 
-### 7.11.1 - History of Floors Fields
+## 7.11 - 플로어 사용 가이드 <a name="floors"></a>
 
-In versions of OpenRTB prior to 2.6-202307, floors were provided in the `Imp` and `Deal` objects with the fields `imp.bidfloor` and `deal.bidfloor`, respectively. The initial release of OpenRTB 2.6 (PDF version, pre-GitHub) introduced the `mincpmpersec` field in the `Audio` and `Video` objects, which was the first time that floor-related information was associated with specific formats.
+### 7.11.1 - 플로어 필드의 역사
 
-As of OpenRTB 2.6-202307, `mincpmpersec` was also added to the `Deal` object, to allow sellers of audio or video supply to indicate to buyers the relationship between the duration of ads and their floor price in the ad server (in recognition of the fact that in audio/video ad serving, longer duration ads are typically priced higher than shorter ones). Concurrently, a new object serving a similar purpose, known as Duration Floors (see [Object: DurFloors](2.6.md#objectdurfloors)), was added to the `Audio` and `Video` objects, as well as the `Deal` object. The purpose of Duration Floors is to allow sellers to express a nonlinear relationship between the duration of creatives and the associated floor price of the impression opportunity.
+OpenRTB 2.6-202307 이전 버전에서는 `Imp`와 `Deal` 객체에 각각 `imp.bidfloor`와 `deal.bidfloor` 필드를 통해 플로어가 제공되었다. OpenRTB 2.6의 초기 릴리스(PDF 버전, GitHub 이전)에서는 `Audio`와 `Video` 객체에 `mincpmpersec` 필드가 도입되었으며, 이는 특정 포맷과 관련된 플로어 정보가 처음으로 연결된 사례다.
 
-### 7.11.2 - How Sellers Should Provide Floor Guidance
+OpenRTB 2.6-202307부터는 `Deal` 객체에도 `mincpmpersec` 필드가 추가되었다. 이를 통해 오디오 또는 비디오 공급자는 광고 서버에서 광고의 지속 시간과 플로어 가격 간의 관계를 구매자에게 알릴 수 있다(오디오/비디오 광고 서빙에서 더 긴 지속 시간의 광고가 일반적으로 더 높은 가격으로 책정된다는 사실을 반영). 동시에, 비슷한 목적을 수행하는 새로운 객체인 Duration Floors(참조: [Object: DurFloors](2.6.md#objectdurfloors))가 `Audio`, `Video`, 그리고 `Deal` 객체에 추가되었다. Duration Floors의 목적은 크리에이티브의 지속 시간과 광고 기회의 플로어 가격 간의 비선형 관계를 표현할 수 있도록 하는 것이다.
 
-Sellers may specify floors in 3 locations within a BidRequest:
-- `Imp` (via `imp.bidfloor`)
-- `Video` or `Audio` (via `video.mincpmpersec` or `video.durfloors`, or `audio.mincpmpersec` or `audio.durfloors`)
-- `Deal` (via `deal.bidfloor` or `deal.mincpmpersec` or `deal.durfloors`)
 
-In the `Video` and `Audio` objects, sellers must only include one form of floor guidance. In other words, a seller should either provide `mincpmpersec` or `durfloors`. Similarly, in the `Deal` object, a seller should either provide `mincpmpersec` or `durfloors` or `bidfloor`.
+### 7.11.2 - 판매자가 플로어 가이드라인을 제공하는 방법
 
-### 7.11.2 - How Buyers Should Interpret Floor Guidance
+판매자는 `BidRequest` 내 세 가지 위치에서 플로어를 지정할 수 있다:
 
-Buyers bidding with a specific Deal ID should use the floor guidance provided in the corresponding `Deal` object. If there is no floor guidance in the `Deal` object or the buyer is bidding on an Open Market impression opportunity, the buyer should use the floor guidance provided in the corresponding `Video` or `Audio` object to inform their bids. Finally, if no floors are provided in the `Video` or `Audio` objects or the buyer is bidding on a Native or Banner impression opportunity, the buyer should use the floor guidance provided in the `Imp` object.
+- `Imp` (`imp.bidfloor`를 통해)
+- `Video` 또는 `Audio` (`video.mincpmpersec` 또는 `video.durfloors`, 혹은 `audio.mincpmpersec` 또는 `audio.durfloors`를 통해)
+- `Deal` (`deal.bidfloor` 또는 `deal.mincpmpersec` 또는 `deal.durfloors`를 통해)
 
-## 7.12 - ID Match Method Guidance <a name="idmm"></a>
+`Video`와 `Audio` 객체에서 판매자는 반드시 한 가지 형태의 플로어 가이드라인만 포함해야 한다. 즉, 판매자는 `mincpmpersec` 또는 `durfloors` 중 하나만 제공해야 한다. 마찬가지로, `Deal` 객체에서도 판매자는 `mincpmpersec`, `durfloors`, `bidfloor` 중 하나만 제공해야 한다.
 
-### 7.12.1 - Best Practices for Disclosing ID Matches
-Unless prior arrangements have been made between the buyer and the seller directly, the value in the <code>user.buyeruid</code> field is expected to be derived from a real time cookie sync (see [Appendix: Cookie Syncing](https://github.com/openrtb2.x/blob/main/2.6.md#appendix-c-cookie-based-id-syncing-) and value in <code>device.ifa</code> field is expected to be derived from an advertising ID call to the Operating System. 
 
-For an Exchange to properly disclose that an ID substitution has occurred by a publisher, they must propagate the <code>mm</code> value, as sent by the publisher, on the Extended Identifier (eid) they send to the DSP, regardless of how the SSP determined the DSP’s ID.
+### 7.11.2 - 바이어가 플로어 가이드라인을 해석하는 방법
 
-If a linkage is made by any party (e.g. a SSP to a DSP cookie ID) based on an incoming EID where <code>mm</code> does not equal 1 or 2, then the ID sent to the recipient must inherit the <code>mm</code> value of the incoming Extended Identifier (EID). For example, if a SSP receives an ID based on any kind of matching (<code>mm</code> values 3,4, or 5), then even if the ID they send to the DSP is based on a cookie exchange, it must also indicate that matching occurred (i.e. <code>mm</code> values 3,4, or 5).
+특정 **Deal ID**로 입찰하는 바이어는 해당 **Deal** 객체에 제공된 플로어 가이드라인을 사용해야 한다. **Deal** 객체에 플로어 가이드라인이 없거나 바이어가 오픈 마켓 광고 노출 기회에 입찰하는 경우, 바이어는 **Video** 또는 **Audio** 객체에 제공된 플로어 가이드라인을 참조하여 입찰을 진행해야 한다. 마지막으로, **Video** 또는 **Audio** 객체에 플로어 가이드라인이 제공되지 않거나 바이어가 네이티브 또는 배너 광고 노출 기회에 입찰하는 경우, **Imp** 객체에 제공된 플로어 가이드라인을 사용해야 한다.
 
-Example 4 below outlines a workflow where an SSP is able to match to the DSP ID based on a Cookie Based Sync (<code>mm</code>=2) but because they received a bridged ID from the publisher (<code>mm</code>=3) they retain the match method of 3 to the DSP.
 
-Items in the EID array with <code>mm</code> values of 1 or 2 are generally optional/informational, but some buyers may find it useful for sellers to provide them.
+## 7.12 - ID 매칭 방법 가이드라인 <a name="idmm"></a>
 
-### 7.12.2 - Roles Overview
-- <code>inserter</code> is the party that’s putting the ID into the bid request - Typically a Publisher or an SSP. In other words, the party that made the decision to put the ID in the bidstream. In the case of header bidders, the <code>inserter</code> is the Publisher.<br></br>
-- <code>source</code>is the party that defined/created an ID. In the case of universal or alt-IDs, it’s the domain of the party who defined/created the ID itself. In the case of cookie IDs, it’s the domain of the party who the cookie belongs to Prior to sending a partner’s cookie, you are strongly encouraged to verify their preferred EID <code>source</code> value.<br>
-- <code>matcher</code> is the party that created the match included in the ID array, this could be a device graph vendor, or the publisher themselves.
+### 7.12.1 - ID 매칭 공개를 위한 모범 사례
 
-### 7.12.3 - Signaling both Agent Type and Match Method
-Values in the <code>atype</code> attribute should be used to describe the level of the ID in the bidstream and can apply to multiple match methods. 
+구매자와 판매자 간 사전 협의가 이루어지지 않은 경우, <code>user.buyeruid</code> 필드의 값은 실시간 쿠키 동기화에서 파생된 것으로 간주한다([부록: 쿠키 동기화](https://github.com/openrtb2.x/blob/main/2.6.md#appendix-c-cookie-based-id-syncing-) 참조). 또한 <code>device.ifa</code> 필드의 값은 운영체제에 대한 광고 ID 호출에서 파생된 것으로 간주한다.
 
-Different iterations of possible combinations are listed in the following table. Additional json examples for how to use <code>atype</code> alongside match method (<code>mm</code>) signaling can be found in the next section.
+교환(Exchange)이 퍼블리셔에 의해 ID 대체가 발생했음을 제대로 공개하려면, SSP가 DSP의 ID를 어떻게 결정했는지와 관계없이 퍼블리셔가 보낸 <code>mm</code> 값을 DSP에 보내는 확장 식별자(eid)에 전파해야 한다.
+
+어떤 당사자(예: SSP에서 DSP 쿠키 ID로)가 <code>mm</code> 값이 1 또는 2가 아닌 수신 EID를 기반으로 연결을 만들 경우, 수신자에게 보내는 ID는 수신 확장 식별자(EID)의 <code>mm</code> 값을 상속받아야 한다. 예를 들어, SSP가 어떤 종류의 매칭(<code>mm</code> 값 3, 4, 또는 5)을 기반으로 ID를 받은 경우, DSP에 보내는 ID가 쿠키 교환을 기반으로 하더라도 매칭이 발생했음을 표시해야 한다(즉, <code>mm</code> 값 3, 4, 또는 5).
+
+아래 예제 4는 SSP가 쿠키 기반 동기화(<code>mm</code>=2)를 통해 DSP ID와 매칭할 수 있지만, 퍼블리셔로부터 브릿지된 ID(<code>mm</code>=3)를 받았기 때문에 DSP에 매칭 방법 3을 유지하는 워크플로를 보여준다.
+
+EID 배열에서 <code>mm</code> 값이 1 또는 2인 항목은 일반적으로 선택적/정보 제공용이지만, 일부 구매자는 판매자가 이를 제공하는 것이 유용할 수 있다.
+
+
+### 7.12.2 - 역할 개요
+
+- <code>inserter</code>는 입찰 요청에 ID를 삽입하는 주체다. 주로 퍼블리셔나 SSP(Supply-Side Platform)가 이 역할을 맡는다. 즉, ID를 입찰 스트림에 포함시키기로 결정한 주체를 의미한다. 헤더 입찰(header bidding)의 경우, <code>inserter</code>는 퍼블리셔가 된다.<br></br>
+- <code>source</code>는 ID를 정의하거나 생성한 주체다. 범용 ID(universal ID)나 대체 ID(alt-ID)의 경우, 해당 ID를 정의하거나 생성한 주체의 도메인을 나타낸다. 쿠키 ID의 경우, 쿠키가 속한 주체의 도메인을 의미한다. 파트너의 쿠키를 전송하기 전에, 해당 파트너가 선호하는 EID <code>source</code> 값을 확인하는 것이 좋다.<br>
+- <code>matcher</code>는 ID 배열에 포함된 매치를 생성한 주체다. 이는 디바이스 그래프 벤더나 퍼블리셔 자신이 될 수 있다.
+
+
+### 7.12.3 - 에이전트 타입과 매치 방법 신호 전달
+
+<code>atype</code> 속성의 값은 입찰 스트림(bidstream)에서 ID의 수준을 설명하는 데 사용되며, 여러 매치 방법에 적용될 수 있다.
+
+다음 표에서는 가능한 조합의 다양한 반복을 나열한다. <code>atype</code>과 매치 방법(<code>mm</code>) 신호를 함께 사용하는 방법에 대한 추가 JSON 예제는 다음 섹션에서 확인할 수 있다.
 
 <table>
   <tr>
-    <td><strong>atype Value</strong></td>
-    <td><strong>atype Definition</strong></td>
-    <td><strong>Possible Match Methods</strong></td>
+    <td><strong>atype 값</strong></td>
+    <td><strong>atype 정의</strong></td>
+    <td><strong>가능한 매치 방법</strong></td>
   </tr>
   <tr>
     <td>1</td>
-    <td>An ID which is tied to a specific web browser or device (cookie-based, probabilistic, or other).</td>
-    <td>Any match method that pertains to one and only one browser and/or device, regardless of the method used to do the match. Any <code>mm</code> value could be applicable</td>  
+    <td>특정 웹 브라우저나 디바이스에 연결된 ID (쿠키 기반, 확률적, 또는 기타 방법).</td>
+    <td>하나의 브라우저 및/또는 디바이스와 관련된 모든 매치 방법. 어떤 <code>mm</code> 값이든 적용 가능하다.</td>  
   </tr>
   <tr>
     <td>2</td>
-    <td>In-app impressions, which will typically contain a type of device ID (or rather, the privacy-compliant versions of device IDs).</td>
-    <td>Match method that pertains to a single application on a single device, regardless of how the match was done. Any <code>mm</code> value could be applicable, but will most likely be 3, 4, or 5.</td>  
+    <td>앱 내 노출(impressions), 일반적으로 디바이스 ID 타입을 포함 (또는 개인정보 보호를 준수한 버전의 디바이스 ID).</td>
+    <td>단일 디바이스의 단일 애플리케이션과 관련된 매치 방법. 어떤 <code>mm</code> 값이든 적용 가능하지만, 대부분 3, 4, 또는 5일 가능성이 높다.</td>  
   </tr>
   <tr>
     <td>3</td>
-    <td>A person-based ID, i.e., that is the same across devices.</td>
-    <td>Match method that pertains to multiple devices, regardless of how the match was done. Any <code>mm</code> value could be applicable, but will most likely be 3 or 5.</td>  </td> 
+    <td>개인 기반 ID, 즉 여러 디바이스에서 동일한 ID.</td>
+    <td>여러 디바이스와 관련된 매치 방법. 어떤 <code>mm</code> 값이든 적용 가능하지만, 대부분 3 또는 5일 가능성이 높다.</td>  
   </tr>
 </table>
 
-### 7.12.4 - json Examples
 
-#### 7.12.4.1 User and Device IDs
+### 7.12.4 - JSON 예제
 
-##### Example 1. DSP cookie derived from real-time cookie sync, subsequently observable
+#### 7.12.4.1 사용자 및 디바이스 ID
+
+##### 예제 1. 실시간 쿠키 동기화에서 파생된 DSP 쿠키, 이후 관찰 가능
+
 ```
 {
   "user": {
@@ -1631,7 +1662,9 @@ Different iterations of possible combinations are listed in the following table.
 }
 ```
 
-##### Example 2. Resettable advertising ID generated by operating system
+
+##### 예제 2. 운영체제에서 생성된 재설정 가능한 광고 ID
+
 ```
 {
   "device": {
@@ -1640,10 +1673,13 @@ Different iterations of possible combinations are listed in the following table.
 }
 ```
 
-#### 7.12.4.2 Derived IDs for a Single Property
-There exist scenarios in which a party may use an alternate approach to infer a partners (typically a DSP or SSP) cookie user ID or IFA that is believed to apply or be related to the user, but cannot be directly observed. These scenarios should be conveyed using the below mechanism.
 
-##### Example 3: Request from Pub → SSP, user ID matched on hashed email, cookie not observable by SSP in the customary way
+#### 7.12.4.2 단일 속성에 대한 파생 ID
+
+특정 상황에서 한 당사자가 파트너(일반적으로 DSP 또는 SSP)의 쿠키 사용자 ID나 IFA를 직접 관찰할 수는 없지만, 사용자에게 적용되거나 관련이 있다고 판단되는 대체 방법을 사용해 이를 추론할 수 있다. 이러한 상황은 아래 메커니즘을 통해 전달해야 한다.
+
+
+##### 예제 3: Pub → SSP로의 요청, 해시된 이메일로 사용자 ID 매칭, SSP가 일반적인 방식으로 쿠키를 관찰할 수 없음
 
 ```
 {
@@ -1665,13 +1701,14 @@ There exist scenarios in which a party may use an alternate approach to infer a 
   }
 }
 ```
-Note that there is no <code>buyeruid</code> in the example above. If the SSP does not have an explicit agreement from the DSP that they want to receive matched IDs in the <code>buyeruid</code> field, they would simply forward the above request to the DSP (either removing the eids array if the DSP doesn’t want to receive IDs from graphvendor.com, or retaining the array if the DSP does want to receive IDs from graphvendor.com in eids). 
+위 예제에서는 <code>buyeruid</code>가 없다는 점에 주목한다. SSP가 DSP로부터 <code>buyeruid</code> 필드에 매칭된 ID를 받고자 하는 명시적인 동의를 받지 않은 경우, SSP는 위 요청을 DSP로 그대로 전달한다. 이때 DSP가 graphvendor.com의 ID를 받고 싶지 않다면 <code>eids</code> 배열을 제거하고, graphvendor.com의 ID를 받고 싶다면 배열을 그대로 유지한다.
 
-##### Example 4: Request from SSP → DSP corresponding to the above request from pub, where the SSP has set the DSP’s buyeruid based on a hosted cookie match table look up using the bridged ID they received from the pub (based on prior arrangement with the DSP only)
 
-If an arrangement exists to put a matched DSP ID in <code>buyeruid</code>, that would be done as follows:
+##### 예제 4: SSP → DSP로의 요청 (위의 pub 요청에 대응), SSP가 pub로부터 받은 브리지 ID를 사용하여 호스팅된 쿠키 매칭 테이블 조회를 통해 DSP의 buyeruid 설정
 
-<b>NOTE:</b> This method should be used ONLY in cases where a previous arrangement has been made directly between the sell-side and the DSP to express a matched ID in <code>buyeruid</code>. If no agreement is in place, the ids in question should be sent in the EIDS array. 
+만약 매칭된 DSP ID를 <code>buyeruid</code>에 포함하기로 사전에 협의된 경우, 다음과 같이 처리한다:
+
+<b>참고:</b> 이 방법은 SSP와 DSP 간에 사전에 <code>buyeruid</code>에 매칭된 ID를 포함하기로 직접 협의한 경우에만 사용해야 한다. 협의가 이루어지지 않은 경우, 해당 ID는 EIDS 배열로 전송해야 한다.
 
 ```
 {
@@ -1705,10 +1742,13 @@ If an arrangement exists to put a matched DSP ID in <code>buyeruid</code>, that 
   }
 }
 ```
-note that <code>mm</code> value of 3 is retained in this example, because the match is built on top of an ID that was itself based on cross-domain authentication (e.g. via hashed email)
+이 예제에서 <code>mm</code> 값은 3으로 유지된다. 이는 매칭이 크로스 도메인 인증(예: 해시된 이메일)을 기반으로 한 ID 위에 구축되었기 때문이다.
 
-#### 7.12.4.3 Derived IDs Across Multiple Properties or Devices
-##### Example 5: SSP matches their ID to an email-based hash to provide a universal ID to the DSP in the buyeruid field (based on prior arrangement to put it in buyeruid)
+
+#### 7.12.4.3 여러 속성 또는 기기 간 파생된 ID
+
+##### 예제 5: SSP가 이메일 기반 해시와 ID를 매칭하여 DSP에 범용 ID 제공 (buyeruid 필드에 넣기로 사전에 합의된 경우)
+
 ```
 {
   "user": {
@@ -1740,7 +1780,9 @@ note that <code>mm</code> value of 3 is retained in this example, because the ma
   }
 }
 ```
-##### Example 6: On a CTV request, the publisher also provides the IFA of the TV and an alternative ID of an Apple device within that same household, based on authenticated logins across apps
+
+
+##### 예제 6: CTV 요청에서, 퍼블리셔는 앱 간 인증된 로그인을 기반으로 TV의 IFA와 동일한 가정 내 Apple 기기의 대체 ID를 함께 제공한다
 
 ```
 {
@@ -1778,7 +1820,9 @@ note that <code>mm</code> value of 3 is retained in this example, because the ma
 }
 ```
 
-##### Example 7: On a CTV request, the publisher provides the IFA of the TV, but also adds the IFA of an Apple device within that same household to the extended IDs array, based on the household’s IP and a device graph
+
+##### 예제 7: CTV 요청에서, 출판사는 TV의 IFA를 제공하면서 동일 가정 내 Apple 기기의 IFA도 확장 ID 배열에 추가한다. 이는 가정의 IP 주소와 디바이스 그래프를 기반으로 한다.
+
 ```
 {
   "device": {
@@ -1802,8 +1846,12 @@ note that <code>mm</code> value of 3 is retained in this example, because the ma
   }
 }
 ```
-#### 7.12.4.4 Session IDs
-##### Example 8: FAST (free ad-supported TV) app developer provides an ID to the SSP for a non-authenticated user, on a request with no OS-provided device ID
+
+
+#### 7.12.4.4 세션 ID
+
+##### 예제 8: FAST(무료 광고 지원 TV) 앱 개발자가 OS에서 제공된 디바이스 ID가 없는 요청에서 인증되지 않은 사용자에게 SSP에 ID를 제공하는 경우
+
 ```
 {
   "user": {
@@ -1824,105 +1872,126 @@ note that <code>mm</code> value of 3 is retained in this example, because the ma
 }
 ```
 
-## 7.13 - Using genres and gtax attributes <a name="genre"></a>
 
-### 7.13.1 Summary
-Today, the genre of a CTV program is sent using the free text <code>genre</code> attribute in OpenRTB. Because it is free text, sellers often pass their own internal naming conventions or long comma separated arrays. This makes it difficult for buyers and DSPs to programmatically utilize genre information for targeting, reporting, and forecasting use cases. IAB Tech Lab's Content Taxonomy 3.1 was designed to help with this. However, because the full taxonomy is much larger and more complex than what is typically required for CTV content genre targeting, a sub-set of the full taxonomy called the [CTV Genre](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv) list that we have created is intended to ease the use of the content taxonomy for CTV/OTT genres. The genres list is intended to be utilized by sellers to declare the type of CTV content and by contextually focused buyers to understand and target based on genre signals. 
+## 7.13 - 장르와 gtax 속성 사용하기 <a name="genre"></a>
 
-The new genre list is a subset of Content Taxonomy 3.1, to be used alongside the <code>genres</code> and <code>gtax</code> in [Object: Content](#objectcontent) . These new attributes are intended to streamline implementation of CTV genre targeting and avoid integration errors by declaring genres in a distinct attribute with a smaller designated section of the taxonomy. 
+### 7.13.1 요약
 
-For publishers and SSPs, this document provides guidance on how to send content genre signals to increase demand from contextual focused buyers. For DSPs and buyers, this document provides guidance on how to take action on content genre signals when declared by sellers in the bid stream. 
+현재 CTV 프로그램의 장르 정보는 OpenRTB에서 자유 텍스트 형식의 <code>genre</code> 속성을 통해 전송된다. 자유 텍스트 형식이기 때문에, 판매자들은 종종 내부 명명 규칙이나 긴 쉼표로 구분된 배열을 전달한다. 이로 인해 구매자와 DSP(Demand-Side Platform)가 프로그램적으로 장르 정보를 활용하여 타겟팅, 보고, 예측 등의 작업을 수행하기가 어렵다. IAB Tech Lab의 Content Taxonomy 3.1은 이를 해결하기 위해 설계되었다. 그러나 전체 분류 체계가 CTV 콘텐츠 장르 타겟팅에 필요한 범위보다 훨씬 크고 복잡하기 때문에, 우리는 [CTV Genre](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv)라는 전체 분류 체계의 하위 집합을 만들어 CTV/OTT 장르에 대한 분류 체계 사용을 간소화했다. 이 장르 목록은 판매자가 CTV 콘텐츠의 유형을 선언하고, 문맥 기반 구매자가 장르 시그널을 이해하고 타겟팅하는 데 활용하기 위한 것이다.
 
-See: [CTV Genre Mapping](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv) to read the list of new CTV content genres. 
+새로운 장르 목록은 Content Taxonomy 3.1의 하위 집합으로, [Object: Content](#objectcontent)의 <code>genres</code>와 <code>gtax</code> 속성과 함께 사용된다. 이러한 새로운 속성은 CTV 장르 타겟팅 구현을 간소화하고, 분류 체계의 작은 지정된 섹션을 사용하여 장르를 명확히 선언함으로써 통합 오류를 방지하기 위해 설계되었다.
 
-### 7.13.2 Prerequisites
+퍼블리셔와 SSP(Supply-Side Platform)에게는 이 문서가 문맥 기반 구매자의 수요를 증가시키기 위해 콘텐츠 장르 시그널을 전송하는 방법에 대한 지침을 제공한다. DSP와 구매자에게는 이 문서가 판매자가 입찰 스트림에서 선언한 콘텐츠 장르 시그널에 대해 어떻게 대응할지에 대한 지침을 제공한다.
 
-Publishers and SSPs will need to be able to send and read the <code>genres</code> and <code>gtax</code> in [Object: Content](2.6.md#objectcontent). The receiving party, typically a DSP, must be able to read the [Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Content%20Taxonomies/Content%20Taxonomy%203.1.tsv), or the [designated CTV genre subset](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv), being sent in the bid request. Publishers or SSPs should ensure that enumeration sent in the <code>gtax</code> attribute in [Object: Content](2.6.md#objectcontent) is understood by the receiver of the request.
+새로운 CTV 콘텐츠 장르 목록을 확인하려면 [CTV Genre Mapping](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv)을 참고한다.
 
-The the <code>genres</code> and <code>gtax</code> attributes are focused on long-form content and are meant to describe only the genre of the content being described in the bid request. Publishers and SSPs should continue to send other category information about the site or app using the <code>cat</code> and <code>cattax</code> attributes in [Object: Site](2.6.md#objectsite) or [Object: App](2.6.md#objectapp). Using the <code>cat</code> and <code>cattax</code> attributes in [Object: Content](2.6.md#objectcontent) can provide information about the content itself that is not the genre.
 
-### 7.13.3 Guidance for Sell Side 
-#### Publishers 
-The <code>genres</code> attribute in [Object: Content](2.6.md#objectcontent) is intended to replace the existing <code>genre</code> field with an enumerated values contained within the Taxonomy that the <code>gtax</code> attribute is pointing to. Publishers will need to send the <code>genres</code> and <code>gtax</code> attributes dedicated to sending information about the genre of the program to their ad tech partners. The <code>genres</code> attribute should only be used to describe the genre of the holistic piece of content. The <code>cat</code> and <code>cattax</code> attributes can be used to describe finer details contained within parts of the content instead of trying to use those attributes to describe the genre. Publishers wishing to send additional freetext metadata about the content should use the <code>keywords</code> or <code>kwarray</code> attributes in [Object: Content](2.6.md#objectcontent). 
+### 7.13.2 사전 요구 사항
 
-The <code>gtax</code> attribute allows buyers and sellers to align on a taxonomy that both parties are able to read. The default value of the <code>gtax</code> attribute is the [IAB Tech Lab Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Content%20Taxonomies/Content%20Taxonomy%203.1.tsv). While the entirety of [Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Content%20Taxonomies/Content%20Taxonomy%203.1.tsv) may be used, it is expected that at least the [subset of rows focused on CTV genres](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv) is understood.   
+퍼블리셔와 SSP(Supply-Side Platform)는 [Object: Content](2.6.md#objectcontent)에서 <code>genres</code>와 <code>gtax</code>를 보내고 읽을 수 있어야 한다. 일반적으로 DSP(Demand-Side Platform)인 수신 측은 입찰 요청에서 전송된 [콘텐츠 분류 체계 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Content%20Taxonomies/Content%20Taxonomy%203.1.tsv) 또는 [지정된 CTV 장르 하위 집합](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv)을 읽을 수 있어야 한다. 퍼블리셔나 SSP는 [Object: Content](2.6.md#objectcontent)의 <code>gtax</code> 속성에서 전송한 열거형이 요청 수신자에게 이해될 수 있도록 해야 한다.
 
-Content owners using vendors to classify their content should use a 500+ designation in the <code>gtax</code> attribute to designate the vendor in question, in addition to ensuring the receiving party is able to read and understand those enumerations (see Prerequisites section for additional detail). Please make sure there is an enumeration from the vendor and that your DSP partner can read. To maximize DSP support, implementers are encouraged to use the [subset of rows focused on CTV genres](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv).
+<code>genres</code>와 <code>gtax</code> 속성은 장편 콘텐츠에 초점을 맞추며, 입찰 요청에서 설명하는 콘텐츠의 장르만을 나타내도록 설계되었다. 퍼블리셔와 SSP는 사이트나 앱에 대한 다른 카테고리 정보를 [Object: Site](2.6.md#objectsite) 또는 [Object: App](2.6.md#objectapp)의 <code>cat</code>과 <code>cattax</code> 속성을 사용해 계속 전송해야 한다. [Object: Content](2.6.md#objectcontent)에서 <code>cat</code>과 <code>cattax</code> 속성을 사용하면 장르가 아닌 콘텐츠 자체에 대한 정보를 제공할 수 있다.
 
-As a best practice, publishers should pass a minimum viable number of genres that best describe the genre of the content, starting with the most apt enumeration as the first integer in the <code>genres</code> array.  
 
-Buyers typically action on allow and block lists of genres in order to achieve scale. Simply declaring the maximum number of genres does not imply additional demand. Instead, passing too many genres makes it difficult for buyers to effectively understand the type of content and make decisions around suitability. It also limits the user experience benefit we all obtain when advertisements fit well with the content of the video. 
+### 7.13.3 판매자 측 가이드라인
 
-If using content genres for deal targeting, sellers should also be mindful that allowlist and blocklist targeting is the most common way to achieve scale compared to targeting a single genre. 
+#### 퍼블리셔
 
-Allowlist targeting can be used to target all genres of a similar content type that are suitable to package together. For example, an “entertainment” package may include a number of genres grouped together. On the other hand, block list targeting can be used to eliminate genres that are not suitable for the deal’s specific targeting. 
+[Object: Content](2.6.md#objectcontent)에 있는 <code>genres</code> 속성은 기존 <code>genre</code> 필드를 대체하기 위한 것이다. 이 속성은 <code>gtax</code> 속성이 가리키는 분류 체계(Taxonomy)에 포함된 열거형 값을 사용한다. 퍼블리셔는 프로그램의 장르 정보를 광고 기술 파트너에게 전달하기 위해 <code>genres</code>와 <code>gtax</code> 속성을 사용해야 한다. <code>genres</code> 속성은 전체 콘텐츠의 장르를 설명하는 데만 사용해야 한다. 콘텐츠의 세부 사항을 설명하려면 <code>cat</code>과 <code>cattax</code> 속성을 사용해야 하며, 이러한 속성을 장르를 설명하는 데 사용해서는 안 된다. 추가적인 자유 텍스트 메타데이터를 전달하려면 [Object: Content](2.6.md#objectcontent)의 <code>keywords</code> 또는 <code>kwarray</code> 속성을 사용해야 한다.
+
+<code>gtax</code> 속성은 구매자와 판매자가 모두 이해할 수 있는 분류 체계를 정렬하는 데 사용된다. <code>gtax</code> 속성의 기본값은 [IAB Tech Lab Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Content%20Taxonomies/Content%20Taxonomy%203.1.tsv)이다. [Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Content%20Taxonomies/Content%20Taxonomy%203.1.tsv) 전체를 사용할 수 있지만, 최소한 [CTV 장르에 초점을 맞춘 하위 집합](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv)은 이해해야 한다.
+
+콘텐츠를 분류하는 벤더를 사용하는 콘텐츠 소유자는 <code>gtax</code> 속성에 500 이상의 값을 사용해 해당 벤더를 지정해야 한다. 또한, 수신 측이 이러한 열거형 값을 읽고 이해할 수 있는지 확인해야 한다(자세한 내용은 사전 요구 사항 섹션 참조). 벤더의 열거형 값이 존재하는지, DSP 파트너가 이를 읽을 수 있는지 확인해야 한다. DSP 지원을 극대화하려면 [CTV 장르에 초점을 맞춘 하위 집합](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv)을 사용하는 것이 좋다.
+
+퍼블리셔는 콘텐츠의 장르를 가장 잘 설명하는 최소한의 장르를 전달하는 것이 좋다. 가장 적합한 열거형 값을 <code>genres</code> 배열의 첫 번째 정수로 지정해야 한다.
+
+구매자는 일반적으로 스케일을 달성하기 위해 장르의 허용 목록(allowlist)과 차단 목록(blocklist)을 사용한다. 단순히 최대한 많은 장르를 선언한다고 해서 추가 수요가 발생하는 것은 아니다. 오히려 너무 많은 장르를 전달하면 구매자가 콘텐츠 유형을 효과적으로 이해하고 적합성을 판단하기 어려워진다. 또한, 광고가 비디오 콘텐츠와 잘 어울릴 때 얻는 사용자 경험의 이점도 제한된다.
+
+장르를 딜 타겟팅에 사용할 경우, 판매자는 단일 장르를 타겟팅하는 것보다 허용 목록과 차단 목록 타겟팅이 스케일을 달성하는 가장 일반적인 방법임을 명심해야 한다.
+
+허용 목록 타겟팅은 함께 패키징하기에 적합한 유사한 콘텐츠 유형의 모든 장르를 대상으로 할 수 있다. 예를 들어, "엔터테인먼트" 패키지는 여러 장르를 그룹화할 수 있다. 반면, 차단 목록 타겟팅은 딜의 특정 타겟팅에 적합하지 않은 장르를 제외하는 데 사용할 수 있다.
+
 
 #### SSPs
-SSPs will need to upgrade from the current content <code>genre</code> attribute and instead use <code>genres</code> and <code>gtax</code> as a passthrough to DSPs. 
 
-Implementers will need to, at a minimum, read the [subset of IDs from Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv) enumerated in the Tech Lab Taxonomies GitHub repository. The <code>genres</code> attribute is not compatible with any other IAB Tech Lab Taxonomy. 
+SSP는 현재 사용 중인 콘텐츠 <code>genre</code> 속성을 업그레이드하고, 대신 <code>genres</code>와 <code>gtax</code>를 DSP로 전달하는 방식으로 전환해야 한다.
 
-In the event a vendor is used to classify the content, SSPs should be able to pass through the 500+ designation in the <code>gtax</code> attribute to designate the vendor in question. As a best practice, SSPs should ensure the DSP receiving the 500+ enumeration is able to read and understand the rows of the vendor taxonomy in use. To maximize DSP support, implementers are encouraged to use the [subset of IDs from Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv) enumerated in the associated Taxonomy and Mapping GitHub repository.
+구현자는 최소한 [Tech Lab Taxonomies GitHub 저장소](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv)에 나열된 Content Taxonomy 3.1의 ID 부분 집합을 읽어야 한다. <code>genres</code> 속성은 다른 IAB Tech Lab Taxonomy와 호환되지 않는다.
 
-By utilizing these attributes to standardize and enumerate the genre of a program, SSPs will be able to build reporting and/or deal targeting off of the standardized genres list across CTV inventory partners. 
+콘텐츠 분류를 위해 벤더를 사용하는 경우, SSP는 해당 벤더를 지정하기 위해 <code>gtax</code> 속성에 500+ 지정을 전달할 수 있어야 한다. 최선의 방법으로, SSP는 500+ 열거를 수신하는 DSP가 사용 중인 벤더 Taxonomy의 행을 읽고 이해할 수 있는지 확인해야 한다. DSP 지원을 극대화하기 위해 구현자는 관련 Taxonomy 및 Mapping GitHub 저장소에 나열된 [Content Taxonomy 3.1의 ID 부분 집합](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv)을 사용하는 것이 좋다.
 
-### 7.13.4 Guidance for Buyers and DSPs
-The subset of genres is intended to be utilized by buyers for programmatic targeting, reporting, and other use cases as provided by DSPs.  
-
-Buyers and DSPs wanting to use IAB Tech Lab’s Content Taxonomy will need to be able to, at a minimum, read the [subset of IDs from Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv) enumerated in the Tech Lab Taxonomies GitHub repository. In the event a vendor is used to classify the content, DSPs should ensure they’re able to understand the 500+ designation in the <code>gtax</code> attribute and read the associated rows enumerating the actual values of the taxonomy passed in the <code>genres</code> attribute.
-
-The <code>cat</code>, <code>cattax</code> and/or <code>keywords</code> attributes should be used to describe finer details contained within parts of the content instead of trying to use those attributes to describe the genre. It should be noted that content targeting is unrelated to audience targeting and other attributes in OpenRTB 2.x that have to do with content/category of the ad creative. 
-
-Generally, buy side targeting on genres is implemented as allow and block list targeting to achieve scale. For example, an “entertainment” campaign may include a number of genres grouped together. On the other hand, block list targeting can be used to eliminate genres that are not brand suitable or do not match well with the content of the creative.  
-
-### 7.13.5 General Guidance for Genre List
-Declare the genre that best fits the CTV/OTT content within the content.genres attribute. This attribute is an integer array and contains a list of accepted genres from within [Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Content%20Taxonomies/Content%20Taxonomy%203.1.tsv). 
-
-Declare the specific taxonomy version utilized within the new content.gtax attribute to allow SSPs and DSPs to understand and read the information passed within content.genres. 
-
-As a default, a [subset of rows from the Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv) should be utilized as the taxonomy enumerated in the [IAB Tech Lab Taxonomy and Mapping](https://github.com/InteractiveAdvertisingBureau/Taxonomies/tree/develop) GitHub repository. If utilizing a vendor or custom taxonomy please work with your SSPs/DSPs to ensure that those taxonomies can be read before sending. 
+이러한 속성을 활용해 프로그램의 장르를 표준화하고 열거함으로써, SSP는 CTV 인벤토리 파트너 간 표준화된 장르 목록을 기반으로 보고서 작성 및 딜 타겟팅을 구축할 수 있다.
 
 
-## 7.14 - Using cids <a name="cids"></a>
+### 7.13.4 구매자와 DSP를 위한 가이드라인
 
-### 7.14.1 How Extended Content Identifiers are Used
-There is a market desire to target by video/audio content metadata or contextual classifications thereof. This requires some sort of scheme for identifying individual pieces of content, transmitting that in a bid request, and enabling lookup or classification of that piece of content's metadata.
+장르 하위 집합은 구매자가 프로그램 타겟팅, 보고 및 DSP가 제공하는 다른 용도로 활용할 수 있도록 고안되었다.
 
-There are several companies/services which act as a clearinghouse or aggregator of metadata from publishers ("Content Data Platform"). These services ingest video content metadata from publishers and assign an ID (here called an “Extended Content Identifier” or “Extended Content ID”) for each piece of content that is unique within that content data platform. There are contextual data vendors who have access to this aggregated metadata and, if provided an Extended Content ID, can return classifications of the content based on what is available in that metadata.
+IAB Tech Lab의 콘텐츠 분류 체계를 사용하려는 구매자와 DSP는 최소한 [Tech Lab Taxonomies GitHub 저장소](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv)에 나열된 콘텐츠 분류 체계 3.1의 ID 하위 집합을 읽을 수 있어야 한다. 콘텐츠 분류를 위해 벤더를 사용하는 경우, DSP는 <code>gtax</code> 속성의 500+ 지정을 이해하고, <code>genres</code> 속성으로 전달된 실제 값들을 나열하는 관련 행을 읽을 수 있어야 한다.
 
-The following diagram illustrates how this works. The numbers indicate the essential flow/sequence from the perspective of the DSP. Data flow between publishers and the content data platform is out of band from the RTB process.
+장르를 설명하기 위해 <code>cat</code>, <code>cattax</code>, <code>keywords</code> 속성을 사용하기보다는, 이 속성들을 콘텐츠의 세부 사항을 설명하는 데 사용해야 한다. 콘텐츠 타겟팅은 오디언스 타겟팅 및 OpenRTB 2.x의 광고 크리에이티브의 콘텐츠/카테고리와 관련된 다른 속성과는 별개임을 유의해야 한다.
+
+일반적으로, 장르에 대한 구매 측 타겟팅은 허용 목록과 차단 목록 타겟팅으로 구현되어 규모를 달성한다. 예를 들어, "엔터테인먼트" 캠페인은 여러 장르를 묶어 포함할 수 있다. 반면, 차단 목록 타겟팅은 브랜드에 적합하지 않거나 크리에이티브의 콘텐츠와 잘 맞지 않는 장르를 제외하는 데 사용할 수 있다.
+
+
+### 7.13.5 장르 리스트에 대한 일반적인 가이드
+
+CTV/OTT 콘텐츠에 가장 적합한 장르를 `content.genres` 속성에 명시한다. 이 속성은 정수 배열이며, [Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Content%20Taxonomies/Content%20Taxonomy%203.1.tsv)에서 허용된 장르 목록을 포함한다.
+
+SSP(Supply-Side Platform)와 DSP(Demand-Side Platform)가 `content.genres`에 전달된 정보를 이해하고 읽을 수 있도록, 사용된 특정 분류 체계 버전을 `content.gtax` 속성에 명시한다.
+
+기본적으로 [Content Taxonomy 3.1](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Content%20Taxonomies/Content%20Taxonomy%203.1.tsv)의 [하위 집합](https://github.com/InteractiveAdvertisingBureau/Taxonomies/blob/develop/Taxonomy%20Mappings/CTV%20Genre%20Mapping.tsv)을 사용해야 한다. 이 분류 체계는 [IAB Tech Lab Taxonomy and Mapping](https://github.com/InteractiveAdvertisingBureau/Taxonomies/tree/develop) GitHub 저장소에 열거되어 있다. 벤더나 커스텀 분류 체계를 사용하는 경우, SSP/DSP와 협력하여 해당 분류 체계가 전송 전에 읽을 수 있는지 확인해야 한다.
+
+
+## 7.14 - cids 사용하기 <a name="cids"></a>
+
+### 7.14.1 확장 콘텐츠 식별자(Extended Content Identifier)의 활용
+
+비디오/오디오 콘텐츠의 메타데이터나 컨텍스트 기반 분류를 통해 타겟팅하려는 시장 수요가 존재한다. 이를 위해서는 개별 콘텐츠를 식별할 수 있는 체계가 필요하며, 이 정보를 입찰 요청에 전달하고 해당 콘텐츠의 메타데이터를 조회하거나 분류할 수 있어야 한다.
+
+여러 회사나 서비스가 퍼블리셔로부터 메타데이터를 수집하고 통합하는 역할을 한다(이를 "콘텐츠 데이터 플랫폼"이라고 함). 이러한 서비스는 퍼블리셔로부터 비디오 콘텐츠 메타데이터를 수집하고, 각 콘텐츠에 대해 고유한 ID(여기서는 "확장 콘텐츠 식별자" 또는 "확장 콘텐츠 ID"라고 함)를 할당한다. 컨텍스트 데이터 공급업체는 이 통합된 메타데이터에 접근할 수 있으며, 확장 콘텐츠 ID가 제공되면 해당 메타데이터를 기반으로 콘텐츠를 분류할 수 있다.
+
+다음 다이어그램은 이 과정을 보여준다. 숫자는 DSP의 관점에서 필수적인 흐름/순서를 나타낸다. 퍼블리셔와 콘텐츠 데이터 플랫폼 간의 데이터 흐름은 RTB 프로세스와는 별개로 진행된다.
 
 ![](https://github.com/InteractiveAdvertisingBureau/openrtb2.x/blob/main/assets/ECID.jpg)
 
-In the RTB process, the sequence is as follows:
+RTB 프로세스에서의 순서는 다음과 같다:
 
-1. The publisher includes an Extended Content ID (and the source of that ID) in its request to the exchange for ad fill. This will be a content ID previously assigned by the content data platform.
-2. The exchange includes this in the bid request to the DSP.
-3. The DSP queries its contextual vendor with this.
-4. The contextual vendor requests the metadata from the content data platform.
-5. The content data platform returns it.
-6. The contextual vendor returns classifications to the DSP. These classifications are as agreed upon between the contextual vendor and DSP, and are based on transforming or classifying information from the metadata in some way. For example, the vendor could perform topic classification on a synopsis, or perform video/audio recognition on a content URL.
+1. 퍼블리셔는 광고 채우기를 위해 교환(exchange)에 보내는 요청에 확장 콘텐츠 ID(및 해당 ID의 출처)를 포함한다. 이는 콘텐츠 데이터 플랫폼에서 이전에 할당한 콘텐츠 ID여야 한다.
+2. 교환은 이를 DSP에 보내는 입찰 요청에 포함한다.
+3. DSP는 이를 컨텍스트 공급업체에 쿼리한다.
+4. 컨텍스트 공급업체는 콘텐츠 데이터 플랫폼에 메타데이터를 요청한다.
+5. 콘텐츠 데이터 플랫폼은 메타데이터를 반환한다.
+6. 컨텍스트 공급업체는 DSP에 분류 결과를 반환한다. 이 분류는 컨텍스트 공급업체와 DSP 간에 합의된 기준에 따라 이루어지며, 메타데이터의 정보를 변환하거나 분류하는 방식으로 진행된다. 예를 들어, 공급업체는 시놉시스에 대한 주제 분류를 수행하거나, 콘텐츠 URL에 대한 비디오/오디오 인식을 수행할 수 있다.
 
-In practice, one or more layers of caching may be involved in steps 3-6 due to the real-time constraint of RTB.
+실제로는 RTB의 실시간 제약으로 인해 3~6단계에서 하나 이상의 캐싱 계층이 관여할 수 있다.
 
-### 7.14.2 Creating Extended Content Identifiers
-The <code>cids</code> attribute is a string array to support alphanumeric identifiers. However, the <code>cids</code> attribute should only ever be used to pass a content ID. Passing anything other than the external system’s Content ID is strongly discouraged. 
 
-### 7.14.3 Distinguishing Extended Content IDs from Genres, Categories, and Seller-Defined Context
-Note that Extended Content IDs are used to express a unique ID for a single piece of video/audio content. They are not to be used for expressing categorizations of the content (“Comedy”, “Personal Finance”, etc.) according to some taxonomy. For that purpose, use <code>genres</code> and/or <code>cat</code> attributes in [Object: Content](https://github.com/InteractiveAdvertisingBureau/openrtb2.x/blob/main/2.6.md#3216---object-content-). See [7.13 - Using Genres and gtax Attributes](https://github.com/InteractiveAdvertisingBureau/openrtb2.x/blob/main/implementation.md#713---using-genres-and-gtax-attributes-) for additional information on categorizing content.
+### 7.14.2 확장된 콘텐츠 식별자 생성
 
-Extended Content IDs are not to be used for expressing seller-defined context. For that purpose, see the [Segment Taxonomies community extension](https://github.com/InteractiveAdvertisingBureau/openrtb/blob/main/extensions/community_extensions/segtax.md) and the IAB Tech Lab [Seller-defined Audience and Context Signalling standard](https://iabtechlab.com/wp-content/uploads/2021/03/IABTechLab_Taxonomy_and_Data_Transparency_Standards_to_Support_Seller-defined_Audience_and_Context_Signaling_2021-03.pdf).
+<code>cids</code> 속성은 알파벳과 숫자로 이루어진 식별자를 지원하기 위한 문자열 배열이다. 그러나 <code>cids</code> 속성은 오직 콘텐츠 ID를 전달하는 용도로만 사용해야 한다. 외부 시스템의 콘텐츠 ID 이외의 값을 전달하는 것은 권장하지 않는다.
 
-### 7.14.4 Additional Notes on Content IDs
-The <code>content.id</code> attribute should only be used to express the ID of the content in the Seller’s system. IDs from external content classification services should be enumerated and namespaced in the <code>content.data.cids</code> array.  
 
-Providers/sources of Extended Content IDs shall decide on a root domain which they own and will consistently use to identify themselves. Typically, this should be the business or operational domain of the provider. If a publisher is passing its own Extended Content IDs which do not come from some metadata aggregator, it should likewise choose and consistently use a root domain that it owns as the way it identifies itself.
+### 7.14.3 확장 콘텐츠 ID와 장르, 카테고리, 판매자 정의 컨텍스트 구분하기
 
-While SSPs and DSPs may find use for Extended Content IDs, it is also perfectly acceptable for those parties to treat them as opaque strings and not seek to use or understand them. At a minimum, SSPs should pass these fields through, and DSPs should allow them to be used, in partnership with contextual data vendors, to activate segments for targeting. However, Sellers should be sure to send only the Extended Content IDs from vendors that the receiver of the request can read, understand, and interpret. 
+확장 콘텐츠 ID(Extended Content IDs)는 단일 비디오/오디오 콘텐츠에 대한 고유 ID를 표현하기 위해 사용한다. 이 ID는 특정 분류 체계에 따라 콘텐츠를 카테고리화(예: "코미디", "개인 금융" 등)하는 데 사용하지 않는다. 이러한 목적을 위해서는 [Object: Content](https://github.com/InteractiveAdvertisingBureau/openrtb2.x/blob/main/2.6.md#3216---object-content-)의 <code>genres</code> 및/또는 <code>cat</code> 속성을 사용한다. 콘텐츠 카테고리화에 대한 추가 정보는 [7.13 - Using Genres and gtax Attributes](https://github.com/InteractiveAdvertisingBureau/openrtb2.x/blob/main/implementation.md#713---using-genres-and-gtax-attributes-)를 참조한다.
 
-### 7.14.5 JSON Example
+확장 콘텐츠 ID는 판매자가 정의한 컨텍스트를 표현하는 데에도 사용하지 않는다. 이를 위해서는 [Segment Taxonomies 커뮤니티 확장](https://github.com/InteractiveAdvertisingBureau/openrtb/blob/main/extensions/community_extensions/segtax.md)과 IAB Tech Lab의 [판매자 정의 대상 및 컨텍스트 신호 표준](https://iabtechlab.com/wp-content/uploads/2021/03/IABTechLab_Taxonomy_and_Data_Transparency_Standards_to_Support_Seller-defined_Audience_and_Context_Signaling_2021-03.pdf)을 참조한다.
 
-#### Example 1 - Single Extended Content Identifier Vendor : 
+
+### 7.14.4 콘텐츠 ID에 대한 추가 설명
+
+<code>content.id</code> 속성은 판매자 시스템 내에서 콘텐츠의 ID를 표현하는 데만 사용해야 한다. 외부 콘텐츠 분류 서비스에서 제공하는 ID는 <code>content.data.cids</code> 배열에 열거하고 네임스페이스를 지정해야 한다.
+
+확장 콘텐츠 ID를 제공하는 프로바이더나 소스는 자신이 소유한 루트 도메인을 결정하고 이를 일관되게 사용해 자신을 식별해야 한다. 일반적으로 이 도메인은 프로바이더의 비즈니스나 운영 도메인이어야 한다. 만약 퍼블리셔가 메타데이터 집계자로부터 제공받지 않은 자체 확장 콘텐츠 ID를 전달한다면, 마찬가지로 자신이 소유한 루트 도메인을 선택하고 이를 일관되게 사용해 자신을 식별해야 한다.
+
+SSP와 DSP는 확장 콘텐츠 ID를 활용할 수 있지만, 이들을 불투명한 문자열로 처리하고 사용하거나 이해하려고 하지 않는 것도 완전히 허용된다. 최소한 SSP는 이 필드를 통과시켜야 하며, DSP는 컨텍스트 데이터 프로바이더와 협력해 타겟팅을 위한 세그먼트를 활성화하는 데 사용할 수 있도록 허용해야 한다. 그러나 판매자는 요청을 받는 측이 읽고, 이해하고, 해석할 수 있는 프로바이더의 확장 콘텐츠 ID만 전송해야 한다.
+
+
+### 7.14.5 JSON 예제
+
+#### 예제 1 - 단일 확장 콘텐츠 식별자 벤더 :
+
 ```
 {
   "app": {
@@ -1949,7 +2018,10 @@ While SSPs and DSPs may find use for Extended Content IDs, it is also perfectly 
 }
 ...
 ```
-#### Example 2 - Multiple Extended Content Identifier Vendors: 
+
+
+#### 예제 2 - 다중 확장 콘텐츠 식별자 공급업체:
+
 ```
 {
   "app": {
@@ -1981,3 +2053,5 @@ While SSPs and DSPs may find use for Extended Content IDs, it is also perfectly 
   }
 }
 ```
+
+
