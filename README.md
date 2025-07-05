@@ -1,71 +1,91 @@
 ![IAB Tech Lab](https://drive.google.com/uc?id=10yoBoG5uRETSXRrnJPUDuONujvADrSG1)
 
-# **OpenRTB 2.x**
-OpenRTB 2.x specification, from 2.6 onward
 
-#### About OpenRTB
+# OpenRTB 2.x
+
+OpenRTB 2.x 스펙, 2.6 버전부터 시작
+
+
+#### OpenRTB 소개
+
 https://iabtechlab.com/openrtb  
 
+OpenRTB는 실시간 입찰(Real-Time Bidding)을 위한 개방형 프로토콜이다. 디지털 광고 시장에서 광고주와 퍼블리셔 간의 효율적인 거래를 지원한다. OpenRTB는 광고 입찰 과정을 자동화하고, 실시간으로 광고를 게재할 수 있는 표준화된 방식을 제공한다. 이 프로토콜은 광고 기술 업계에서 널리 채택되어 있으며, 다양한 플랫폼과 시스템 간의 호환성을 높인다. OpenRTB는 광고 입찰의 투명성과 효율성을 극대화해 디지털 광고 생태계의 발전에 기여한다.
 
-#### AdCOM: Advertising Common Object Model
+
+#### AdCOM: 광고 공통 객체 모델
+
 https://github.com/InteractiveAdvertisingBureau/AdCOM
 
-#### Versioning Policy
-As of OpenRTB 2.6-202211, OpenRTB's version number is only incremented on breaking changes. In other words, OpenRTB 2.7 should be considered a distinct version from OpenRTB 2.6 when there is a need for distinguishing versions. For example, a demand source might regard the version header when parsing a bid request received from a supply source. See OpenRTB Principles.
 
-The current version of the OpenRTB specification is updated approximately once a month if there are non-breaking improvements to be released such as new fields, objects, or values in enumerated lists. Errata, such as clarifications or corrections to descriptions not materially impacting the specification itself, are also addressed during monthly updates. See Errata.
+#### 버전 관리 정책
 
-The format for version numbering includes major and minor version and a date code. For example, 2.6-202211 represents the release for November 2022. The following releases may be 2.6-202212 (December), 2.6-202301 (January), etc.
+OpenRTB 2.6-202211부터 OpenRTB의 버전 번호는 **호환성 깨짐(breaking changes)**이 발생할 때만 증가한다. 즉, OpenRTB 2.7은 OpenRTB 2.6과 구별되는 별개의 버전으로 간주해야 한다. 예를 들어, 수요 측에서는 공급 측에서 받은 입찰 요청(bid request)을 파싱할 때 버전 헤더를 고려할 수 있다. 자세한 내용은 [OpenRTB Principles](#)를 참고한다.
 
-This versioning policy is a break from historical practice for OpenRTB 2.x. In versions of OpenRTB prior to 2.6, major version numbers represent breaking changes and minor version numbers represent non-breaking changes.
+현재 OpenRTB 명세서의 버전은 **호환성 유지(non-breaking) 개선 사항**이 있을 경우 약 한 달에 한 번씩 업데이트된다. 이는 새로운 필드, 객체, 열거형 목록의 값 추가 등을 포함한다. 또한, 명세서 자체에 실질적인 영향을 미치지 않는 설명의 명확화나 수정과 같은 오류(errata)도 매월 업데이트를 통해 처리된다. 자세한 내용은 [Errata](#)를 참고한다.
 
-#### How To Contribute
+버전 번호 형식은 **주 버전(major)**과 **부 버전(minor)**, 그리고 **날짜 코드**로 구성된다. 예를 들어, 2.6-202211은 2022년 11월 릴리스를 의미한다. 이후 릴리스는 2.6-202212(12월), 2.6-202301(1월) 등으로 이어질 수 있다.
 
-1. Create a fork of this GitHub repo in your own GitHub account
-1. Create a new branch in your fork, based on `develop`, giving your new branch a short but descriptive name (e.g. if you're adding support for a new flux capacitor object, you could call the branch "add-flux-capacitor")
-1. Make the desired changes in your branch, with one commit per logical change (e.g. if you're adding 2 distinct features in your branch, create 2 distinct commits). Give each of your commits a short but descriptive "Summary" name, and then provide a longer "Description" to fully explain your proposed changes.
-1. (Optional) Consider doing a round of internal reviews/feedback within your own organization, and make any additional updates in your own branch.
-1. Once you're happy with your branch, publish it to GitHub. Then create a new Pull Request (PR) to propose merging the changes from your fork into the `develop` branch of the origin repo.
-1. The Programmatic Supply Chain Working Group and Commit Group will review your update(s), leave comments, and may propose changes. You may need to make additional commits to receive approval for your PR.
-1. Once your PR is approved, it will be merged into the `main` branch at the time of the next monthly release. Details below on how the Release Process works.
-1. (Optional) If your PR has been open for a long time, it's possible that it cannot be automatically merged into the `develop` branch. In this case, there will be a message in the PR asking you to resolve conflicts before it can be merged.
-
-#### Monthly Release-Cutting Process (for repo admins)
-
-Over the course of each month, the Programmatic Supply Chain Working Group and Commit Group may review any submitted PRs and take the following possible actions for each:
-- approve it for inclusion in the next release
-- ask the author(s) for additional changes
-- reject it (with a rationale)
-
-During the last week of the month, if there are any approved PRs in the `develop` branch, the following steps are executed:
-
-1. A PR is created to merge the `develop` branch into the `main` branch.
-1. A new Release and Tag are created concurrently. The naming convention for the release is "OpenRTB v2.6-YYYYMM", and the tag is "2.6-YYYYMM" where YYYYMM is the date code (e.g. 202301 for January 2023).
-
-The result of this process is that tagged releases are created for each release of OpenRTB, and the history of these is easily reviewed. The `main` branch for the repository will always reflect the most recent release, and ongoing development work will always occur in the `develop` branch.
-
-#### Contact
-For more information, or to get involved, please email support@iabtechlab.com.
-
-#### About IAB Tech Lab  
-The IAB Technology Laboratory is a nonprofit research and development consortium charged
-with producing and helping companies implement global industry technical standards and
-solutions. The goal of the Tech Lab is to reduce friction associated with the digital advertising and marketing supply chain while contributing to the safe growth of an industry. The IAB Tech Lab spearheads the development of technical standards, creates and maintains a code library to assist in rapid, cost-effective implementation of IAB standards, and establishes a test platform for companies to evaluate the compatibility of their technology solutions with IAB standards, which for 18 years have been the foundation for interoperability and profitable growth in the digital advertising supply chain.
-
-Learn more about IAB Tech Lab here: [https://www.iabtechlab.com/](https://www.iabtechlab.com/)
+이 버전 관리 정책은 OpenRTB 2.x의 이전 관행과는 차이가 있다. OpenRTB 2.6 이전 버전에서는 주 버전 번호가 호환성 깨짐을, 부 버전 번호가 호환성 유지 변경을 나타냈다.
 
 
-#### Contributors and Technical Governance
+#### 기여 방법
 
-OpenRTB Working Group members provide contributions to this repository. Participants in the Programmatic Supply Working group must be members of IAB Tech Lab. Technical Governance and code commits for the project are provided by the IAB Tech Lab Programmatic Supply Chain Commit Group. 
+1. 이 GitHub 저장소를 여러분의 GitHub 계정에 포크한다.
+1. 포크한 저장소에서 `develop` 브랜치를 기반으로 새로운 브랜치를 만든다. 브랜치 이름은 짧지만 설명이 가능한 이름으로 지정한다(예: 새로운 flux capacitor 객체를 추가한다면 "add-flux-capacitor"와 같은 이름을 사용).
+1. 브랜치에서 원하는 변경 사항을 적용한다. 논리적으로 구분되는 변경 사항마다 별도의 커밋을 생성한다(예: 브랜치에서 두 가지 기능을 추가한다면 두 개의 커밋을 만든다). 각 커밋에는 짧지만 설명이 가능한 "요약" 이름을 지정하고, "설명" 부분에 변경 사항에 대한 자세한 내용을 적는다.
+1. (선택 사항) 조직 내부에서 리뷰와 피드백을 진행한 후, 필요한 추가 업데이트를 브랜치에 반영한다.
+1. 브랜치 작업이 완료되면 GitHub에 푸시한다. 그런 다음 Pull Request(PR)를 생성해 포크한 저장소의 변경 사항을 원본 저장소의 `develop` 브랜치로 병합할 것을 제안한다.
+1. Programmatic Supply Chain Working Group과 Commit Group이 여러분의 업데이트를 검토하고 코멘트를 남기며 변경을 제안할 수 있다. PR이 승인되기 전에 추가 커밋이 필요할 수도 있다.
+1. PR이 승인되면 다음 월별 릴리스 시점에 `main` 브랜치로 병합된다. 릴리스 프로세스에 대한 자세한 내용은 아래를 참고한다.
+1. (선택 사항) PR이 오랫동안 열려 있는 경우, `develop` 브랜치로 자동 병합이 불가능할 수 있다. 이 경우 PR에 충돌 해결을 요청하는 메시지가 표시된다.
 
-Learn more about how to submit changes in our working group: [So, You'd Like to Propose a Change...](http://iabtechlab.com/blog/so-youd-like-to-propose-a-change-to-openrtb-adcom/)
 
-### License
-OpenRTB Specification the IAB Tech Lab is licensed under a Creative Commons Attribution 3.0 License.   To view a copy of this license, visit creativecommons.org/licenses/by/3.0/ or write to Creative Commons, 171 Second Street, Suite 300, San Francisco, CA 94105, USA.
+#### 월간 릴리즈 절차 (리포지토리 관리자용)
 
-By submitting an idea, specification, software code, document, file, or other material (each, a “Submission”) to the OpenRTB repository, to any member of the Programmatic Supply Chain Working Group, or to the IAB Tech Lab in relation to OpenRTB 2.x you agree to and hereby license such Submission to the IAB Tech Lab under the Creative Commons Attribution 3.0 License and agree that such Submission may be used and made available to the public under the terms of such license. If you are a member of the IAB Tech Lab then the terms and conditions of the [IPR Policy](https://iabtechlab.com/ipr-iab-techlab/acknowledge-ipr/) may also be applicable to your Submission, and if the IPR Policy is applicable to your Submission then the IPR Policy will control  in the event of a conflict between the Creative Commons Attribution 3.0 License and the IPR Policy.
+매월 동안 Programmatic Supply Chain Working Group과 Commit Group은 제출된 PR을 검토하고 다음과 같은 조치를 취할 수 있다:
+- 다음 릴리즈에 포함하기 위해 승인
+- 작성자에게 추가 변경 요청
+- (이유와 함께) 거부
 
-#### Disclaimer
+월 마지막 주에 `develop` 브랜치에 승인된 PR이 있다면 다음 단계를 실행한다:
 
-THE STANDARDS, THE SPECIFICATIONS, THE MEASUREMENT GUIDELINES, AND ANY OTHER MATERIALS OR SERVICES PROVIDED TO OR USED BY YOU HEREUNDER (THE “PRODUCTS AND SERVICES”) ARE PROVIDED “AS IS” AND “AS AVAILABLE,” AND IAB TECHNOLOGY LABORATORY, INC. (“TECH LAB”) MAKES NO WARRANTY WITH RESPECT TO THE SAME AND HEREBY DISCLAIMS ANY AND ALL EXPRESS, IMPLIED, OR STATUTORY WARRANTIES, INCLUDING, WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AVAILABILITY, ERROR-FREE OR UNINTERRUPTED OPERATION, AND ANY WARRANTIES ARISING FROM A COURSE OF DEALING, COURSE OF PERFORMANCE, OR USAGE OF TRADE. TO THE EXTENT THAT TECH LAB MAY NOT AS A MATTER OF APPLICABLE LAW DISCLAIM ANY IMPLIED WARRANTY, THE SCOPE AND DURATION OF SUCH WARRANTY WILL BE THE MINIMUM PERMITTED UNDER SUCH LAW. THE PRODUCTS AND SERVICES DO NOT CONSTITUTE BUSINESS OR LEGAL ADVICE. TECH LAB DOES NOT WARRANT THAT THE PRODUCTS AND SERVICES PROVIDED TO OR USED BY YOU HEREUNDER SHALL CAUSE YOU AND/OR YOUR PRODUCTS OR SERVICES TO BE IN COMPLIANCE WITH ANY APPLICABLE LAWS, REGULATIONS, OR SELF-REGULATORY FRAMEWORKS, AND YOU ARE SOLELY RESPONSIBLE FOR COMPLIANCE WITH THE SAME, INCLUDING, BUT NOT LIMITED TO, DATA PROTECTION LAWS, SUCH AS THE PERSONAL INFORMATION PROTECTION AND ELECTRONIC DOCUMENTS ACT (CANADA), THE DATA PROTECTION DIRECTIVE (EU), THE E-PRIVACY DIRECTIVE (EU), THE GENERAL DATA PROTECTION REGULATION (EU), AND THE E-PRIVACY REGULATION (EU) AS AND WHEN THEY BECOME EFFECTIVE.
+1. `develop` 브랜치를 `main` 브랜치로 병합하는 PR을 생성한다.
+1. 새로운 릴리즈와 태그를 동시에 생성한다. 릴리즈 명명 규칙은 "OpenRTB v2.6-YYYYMM"이며, 태그는 "2.6-YYYYMM"이다. 여기서 YYYYMM은 날짜 코드이다 (예: 202301은 2023년 1월).
+
+이 절차를 통해 OpenRTB의 각 릴리즈에 대해 태그가 지정된 릴리즈가 생성되고, 이들의 기록을 쉽게 확인할 수 있다. 리포지토리의 `main` 브랜치는 항상 최신 릴리즈를 반영하며, 진행 중인 개발 작업은 항상 `develop` 브랜치에서 이루어진다.
+
+
+#### 문의하기
+
+추가 정보를 원하거나 참여하고 싶다면 support@iabtechlab.com으로 이메일을 보내주세요.
+
+
+#### IAB Tech Lab 소개
+
+IAB Technology Laboratory는 비영리 연구 개발 컨소시엄으로, 글로벌 산업 기술 표준과 솔루션을 제정하고 기업들이 이를 구현할 수 있도록 지원하는 역할을 한다. Tech Lab의 목표는 디지털 광고 및 마케팅 공급망에서 발생하는 마찰을 줄이는 동시에 산업의 안전한 성장에 기여하는 것이다. IAB Tech Lab은 기술 표준 개발을 주도하고, IAB 표준을 빠르고 비용 효율적으로 구현할 수 있도록 코드 라이브러리를 생성 및 유지하며, 기업들이 자신들의 기술 솔루션이 IAB 표준과 호환되는지 평가할 수 있는 테스트 플랫폼을 구축한다. 지난 18년 동안 IAB 표준은 디지털 광고 공급망의 상호 운용성과 수익성 있는 성장을 위한 기반이 되어 왔다.
+
+IAB Tech Lab에 대해 더 알아보려면 다음 링크를 참고하세요: [https://www.iabtechlab.com/](https://www.iabtechlab.com/)
+
+
+#### 기여자와 기술 거버넌스
+
+OpenRTB 작업 그룹 멤버들이 이 저장소에 기여한다. 프로그램매틱 공급 작업 그룹에 참여하려면 IAB Tech Lab의 멤버여야 한다. 프로젝트의 기술 거버넌스와 코드 커밋은 IAB Tech Lab 프로그램매틱 공급 체인 커밋 그룹에서 담당한다.
+
+작업 그룹에서 변경 사항을 제출하는 방법에 대해 더 알아보려면 다음 링크를 참고하자: [So, You'd Like to Propose a Change...](http://iabtechlab.com/blog/so-youd-like-to-propose-a-change-to-openrtb-adcom/)
+
+
+### 라이선스
+
+OpenRTB 스펙은 IAB Tech Lab에서 Creative Commons Attribution 3.0 라이선스로 제공된다. 이 라이선스의 사본을 보려면 creativecommons.org/licenses/by/3.0/을 방문하거나 Creative Commons, 171 Second Street, Suite 300, San Francisco, CA 94105, USA로 문의한다.
+
+OpenRTB 저장소, Programmatic Supply Chain Working Group의 구성원, 또는 OpenRTB 2.x와 관련하여 IAB Tech Lab에 아이디어, 스펙, 소프트웨어 코드, 문서, 파일 또는 기타 자료(이하 "제출물")를 제출함으로써, 여러분은 해당 제출물을 Creative Commons Attribution 3.0 라이선스 하에 IAB Tech Lab에 라이선스 부여하는 데 동의한다. 또한 해당 제출물이 이 라이선스의 조건에 따라 공개적으로 사용 및 제공될 수 있음을 동의한다. 만약 여러분이 IAB Tech Lab의 회원이라면, [IPR 정책](https://iabtechlab.com/ipr-iab-techlab/acknowledge-ipr/)의 조건도 여러분의 제출물에 적용될 수 있다. IPR 정책이 제출물에 적용되는 경우, Creative Commons Attribution 3.0 라이선스와 IPR 정책 간에 충돌이 발생하면 IPR 정책이 우선한다.
+
+
+#### 책임의 한계
+
+이 문서에서 제공하는 표준, 규격, 측정 가이드라인 및 기타 자료 또는 서비스("제품 및 서비스")는 "있는 그대로" 및 "이용 가능한 상태"로 제공된다. IAB 테크놀로지 랩(Tech Lab)은 이와 관련하여 어떠한 보증도 하지 않으며, 명시적, 묵시적 또는 법정 보증을 포함한 모든 보증을 명시적으로 부인한다. 여기에는 상품성, 특정 목적에의 적합성, 가용성, 오류 없음 또는 중단 없는 운영에 대한 보증뿐만 아니라 거래 관행, 이행 과정 또는 상관습에서 비롯된 모든 보증도 포함된다. 법률상 Tech Lab이 묵시적 보증을 부인할 수 없는 경우, 해당 보증의 범위와 기간은 해당 법률에서 허용하는 최소한으로 제한된다.
+
+제품 및 서비스는 비즈니스 또는 법률적 조언을 제공하지 않는다. Tech Lab은 제품 및 서비스가 귀하 및/또는 귀하의 제품 또는 서비스가 모든 적용 가능한 법률, 규정 또는 자율 규제 프레임워크를 준수하도록 보장하지 않는다. 귀하는 데이터 보호 법률을 포함한 모든 관련 법규를 준수할 전적인 책임을 진다. 여기에는 캐나다의 개인정보 보호 및 전자문서법, EU 데이터 보호 지침, EU 전자 프라이버시 지침, EU 일반 데이터 보호 규정(GDPR), 그리고 발효 시 EU 전자 프라이버시 규정 등이 포함되지만 이에 국한되지 않는다.
+
+
